@@ -46,7 +46,7 @@ Ordem de implementação pensada para ter, o quanto antes, o **fluxo feliz de po
 - Uma **loja não-registrada** (fora da allow-list) para demonstrar recusa (anti-site-fake).
 
 ## Fase 5 — Agente (App 1)
-- Orquestração via Claude API. Capacidades:
+- Orquestração via **OpenAI API** (chave em `OPENAI_API_KEY`, nunca no repo). Capacidades:
   1. Interpretar o pedido do humano em linguagem natural.
   2. Consultar catálogos das lojas candidatas; detectar atributos que **existem e variam** → decidir o que perguntar.
   3. Resolver lacunas críticas **com o humano** (ex.: tamanho) antes de propor o mandato.

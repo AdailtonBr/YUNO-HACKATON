@@ -63,7 +63,27 @@ const code = (r) => r.reason?.code;
 
 test("compra dentro do mandato passa", () => {
   const m = mandate(), p = purchase();
-  assert.deepEqual(evaluate(m, p, ctx(m, p)), { valid: true });
+  const r = evaluate(m, p, ctx(m, p));
+  assert.equal(r.valid, true);
+  assert.deepEqual(r.trace.map((t) => t.verdict), ["ok", "ok"]);
+});
+
+test("o trace explica regra a regra, e nao mente sobre o que nao olhou", () => {
+  // Tres regras; a segunda viola. A terceira NAO foi avaliada — dizer "ok"
+  // sobre ela seria inventar. E o que a tela "regra que decidiu" mostra.
+  const m = mandate({
+    constraints: [
+      { attr: "category", op: "eq", value: "calcado", on_missing: "deny", on_fail: "deny" },
+      { attr: "price", op: "lte", value: 5000, on_missing: "deny", on_fail: "deny" },
+      { attr: "size", op: "eq", value: "40", on_missing: "deny", on_fail: "deny" },
+    ],
+  });
+  const p = purchase();
+  const r = evaluate(m, p, ctx(m, p));
+  assert.equal(r.action, "reject");
+  assert.deepEqual(r.trace.map((t) => t.verdict), ["ok", "violated", "not_evaluated"]);
+  assert.equal(r.trace[1].actual, 9800);
+  assert.equal(r.trace[1].value, 5000);
 });
 
 /* --------------------------- estado vivo --------------------------- */

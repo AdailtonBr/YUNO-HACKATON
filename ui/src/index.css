@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/*
+ * Duas famílias, com papéis distintos e consistentes:
+ *  - sans  -> títulos, botões, prosa dirigida à humana
+ *  - mono  -> tudo que é DADO: regras, valores, ids, hashes, rótulos técnicos
+ * A separação é semântica, não decorativa: se está em mono, é algo que o
+ * sistema mediu ou decidiu, e que a humana pode conferir.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+
+  /* Semântica de cor. Verde = permitido, vermelho = negado, âmbar = espera. */
+  --color-allow-bg: #ecfdf5;
+  --color-allow-line: #a7f3d0;
+  --color-allow-ink: #065f46;
+
+  --color-deny-bg: #fef2f2;
+  --color-deny-line: #fecaca;
+  --color-deny-ink: #991b1b;
+
+  --color-wait-bg: #fffbeb;
+  --color-wait-line: #fde68a;
+  --color-wait-ink: #92400e;
+
+  --color-shell: #fbfbfa;
+  --color-line: #e7e5e4;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-shell);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Rótulo técnico: caixa alta, mono, espaçado. Aparece em toda a interface. */
+@utility label-tech {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-stone-500);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-stone-300);
+  border-radius: 99px;
+  border: 3px solid var(--color-shell);
+}

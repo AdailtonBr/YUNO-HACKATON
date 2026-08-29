@@ -74,11 +74,17 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, authorityUrl }
       receiptId: result.receiptId ?? null,
     });
 
-    if (result.valid) return res.json({ ok: true, receiptId: result.receiptId, price, currency });
+    // A loja repassa o veredito da Autoridade inteiro, inclusive o detalhe por
+    // regra.  Ela nao interpreta nem resume: nao e dela a decisao.
+    if (result.valid) {
+      return res.json({ ok: true, receiptId: result.receiptId, price, currency, trace: result.trace ?? [] });
+    }
     res.json({
       ok: false,
       action: result.action ?? "reject",
       reasonText: result.reasonText,
+      reason: result.reason ?? null,
+      trace: result.trace ?? [],
       approvalRequestId: result.approvalRequestId ?? null,
     });
   });

@@ -13,7 +13,7 @@ import { Mandate, Merchant, Agent, Approval, Proposal, AuditLog } from "./models
 import { mandateStatus } from "./engine.js";
 import { introspect } from "./introspect.js";
 import { opaqueId } from "./ticket.js";
-import { tokenize } from "./vault.js";
+import { tokenize, listMethods } from "./vault.js";
 import { humanReadable, reasonText } from "../shared/messages.js";
 
 const sha256 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
@@ -107,6 +107,19 @@ export function buildRouter() {
     });
 
     res.status(201).json({ mandateId: mandate._id, humanReadable: mandate.humanReadable });
+  });
+
+  /**
+   * Preview da frase, para a Trusted Surface mostrar ao humano ANTES de criar.
+   * Existe para que a UI não tenha um renderizador próprio: se a frase fosse
+   * escrita em paralelo ao JSON, ela poderia dizer "R$100" e o mandato gravar
+   * R$1000.  Uma fonte só, a mesma que grava (D5).
+   */
+  r.post("/mandates/preview", requireHuman, (req, res) => {
+    const { mode, constraints, currency, maxUses, expiresAt } = req.body ?? {};
+    res.json({
+      humanReadable: humanReadable({ mode, constraints, currency, maxUses: maxUses ?? 1, expiresAt }, locale(req)),
+    });
   });
 
   r.post("/mandates/:id/revoke", requireHuman, async (req, res) => {
@@ -250,8 +263,10 @@ export function buildRouter() {
         agentIdAuthenticated: e.agentIdAuthenticated,
         purchase: e.purchase,
         decision: e.decision,
+        reason: e.reason ?? null,
         reasonText: reasonText(e.reason, locale(req)),
         receiptId: e.receiptId,
+        trace: e.trace ?? [],
       }))
     );
   });
@@ -260,10 +275,24 @@ export function buildRouter() {
 
   r.post("/vault/tokenize", requireHuman, (req, res) => {
     try {
-      res.json(tokenize(req.body ?? {}));
+      res.json(tokenize({ ...(req.body ?? {}), humanId: req.humanId }));
     } catch {
       res.status(400).json({ error: "unsupported_rail" });
     }
+  });
+
+  r.get("/vault/methods", requireHuman, async (req, res) => {
+    const methods = listMethods(req.humanId);
+    // Quais mandatos apontam para cada ref: é o que dá sentido a "desativar".
+    const mandates = await Mandate.find({ humanId: req.humanId }).lean();
+    res.json(
+      methods.map((m) => ({
+        ...m,
+        usedBy: mandates
+          .filter((x) => x.paymentMethodRef === m.paymentMethodRef)
+          .map((x) => ({ mandateId: x._id, status: mandateStatus(x), humanReadable: x.humanReadable })),
+      }))
+    );
   });
 
   return r;

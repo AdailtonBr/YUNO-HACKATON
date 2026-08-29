@@ -50,7 +50,7 @@ Siga `docs/07-build-plan.md`. Resumo: **fluxo feliz de ponta a ponta primeiro**,
 2. Cofre/PSP mock (cartão + Pix).
 3. Trusted Surface (UI de criação/revogação, mandato em linguagem natural derivada do JSON).
 4. Duas lojas + adaptadores de vocabulário.
-5. Agente (Claude API) — conversa, descobre atributos que variam, propõe, compara, compra.
+5. Agente (**OpenAI API**) — conversa, descobre atributos que variam, propõe, compara, compra.
 6. Casos feios (recusar vs escalar) e bonus (disputa, condições ricas, agente adversarial).
 
 ## Real vs Mock

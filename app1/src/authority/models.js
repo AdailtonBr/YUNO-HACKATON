@@ -125,6 +125,7 @@ const auditSchema = new Schema(
     approvalId: { type: String, default: null },
     receiptId: { type: String, default: null },
     idempotencyKey: { type: String, default: null },
+    trace: { type: Schema.Types.Mixed, default: [] },
   },
   opts
 );

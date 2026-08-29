@@ -27,9 +27,9 @@ export const OPS = {
  * a frase para o humano é renderizada por `messages.js` (i18n PT-BR -> EN sem
  * caçar string no código), e o `audit_log` guarda algo estável de auditar.
  */
-const ok = () => ({ valid: true });
-const deny = (code, params = {}) => ({ valid: false, action: "reject", reason: { code, params } });
-const escalate = (code, params = {}) => ({ valid: false, action: "escalate", reason: { code, params } });
+const ok = (trace = []) => ({ valid: true, trace });
+const deny = (code, params = {}, trace = []) => ({ valid: false, action: "reject", reason: { code, params }, trace });
+const escalate = (code, params = {}, trace = []) => ({ valid: false, action: "escalate", reason: { code, params }, trace });
 
 /**
  * A aprovação humana é grudada NAQUELA compra e vale UMA vez.  Aprovar um tênis
@@ -90,36 +90,66 @@ export function evaluate(mandate, purchase, ctx) {
   if (ticket.agentId !== mandate.agentId) return deny("agent_not_owner");
 
   // 3) Constraints de atributo (motor genérico).
-  for (const c of mandate.constraints) {
+  //
+  //    O `trace` registra o veredito de CADA regra, e não só o da que barrou.
+  //    "Por que foi negado?" merece resposta regra a regra — e as que vieram
+  //    depois da violação ficam marcadas como não avaliadas, porque o motor
+  //    para na primeira: dizer "ok" sobre o que não se olhou seria mentira.
+  const trace = mandate.constraints.map((c) => ({
+    attr: c.attr,
+    op: c.op,
+    value: c.value,
+    on_missing: c.on_missing ?? "deny",
+    on_fail: c.on_fail ?? "deny",
+    actual: undefined,
+    verdict: "not_evaluated",
+  }));
+
+  for (let i = 0; i < mandate.constraints.length; i++) {
+    const c = mandate.constraints[i];
+    const row = trace[i];
     const real = purchase.attributes?.[c.attr];
+    row.actual = real;
 
     if (real === undefined) {
       // AUSÊNCIA -> on_missing.  "Não sei" é um estado diferente de "sei que não".
-      if (c.on_missing === "allow") continue;
-      if (c.on_missing === "escalate") return escalate("attribute_missing", { attr: c.attr });
-      return deny("attribute_missing", { attr: c.attr }); // default: deny
+      if (c.on_missing === "allow") {
+        row.verdict = "missing_allowed";
+        continue;
+      }
+      row.verdict = "missing";
+      const params = { attr: c.attr };
+      return c.on_missing === "escalate"
+        ? escalate("attribute_missing", params, trace)
+        : deny("attribute_missing", params, trace); // default: deny
     }
 
     const op = OPS[c.op];
     // Operador desconhecido é erro de DADOS, não dúvida sobre a compra: nega, nunca escala.
-    if (!op) return deny("unknown_operator", { op: c.op });
+    if (!op) {
+      row.verdict = "invalid_rule";
+      return deny("unknown_operator", { op: c.op }, trace);
+    }
 
     if (!op(real, c.value)) {
       // FALHA -> on_fail.  Fora do mandato recusa OU escala, nunca aprova em silêncio.
+      row.verdict = "violated";
       const params = { attr: c.attr, op: c.op, value: c.value, actual: real };
       return c.on_fail === "escalate"
-        ? escalate("constraint_failed", params)
-        : deny("constraint_failed", params); // default: deny
+        ? escalate("constraint_failed", params, trace)
+        : deny("constraint_failed", params, trace); // default: deny
     }
+
+    row.verdict = "ok";
   }
 
   // 4) Modo do mandato: a aprovação por compra é imposta AQUI, na Autoridade,
   //    e não no agente.  Se a trava vivesse no agente, bastaria ele não lê-la.
   if (mandate.mode === "aprovacao" && !approvalMatches(approval, mandate, purchase, ctx)) {
-    return escalate("approval_required");
+    return escalate("approval_required", {}, trace);
   }
 
-  return ok();
+  return ok(trace);
 }
 
 /** `status` é DERIVADO, nunca gravado.  Esgotado ≠ revogado. */

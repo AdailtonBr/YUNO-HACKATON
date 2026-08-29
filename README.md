@@ -37,17 +37,24 @@ Pagamento (cartão **e** Pix) é **mockado** — a *lógica* de que o instrument
 
 ## Estado atual e como rodar
 
-**Fase 1 pronta:** Autoridade + motor de constraints + bilhete assinado do agente + cofre mock, com 57 testes.
-Fases 2–6 (Trusted Surface, lojas, agente via Claude API, bonus) seguem `docs/07-build-plan.md`.
+**Fases 1 a 4 prontas** — Autoridade, motor de constraints, bilhete assinado do agente, cofre mock,
+duas lojas com adaptador, agente determinístico e a Trusted Surface. 66 testes.
+Falta a Fase 5 (conversa do agente via **OpenAI**) e a Fase 6 (disputa e demais bonus).
 
 ```bash
 npm install
-npm test                      # 57 testes; sobe um Mongo em memoria, nao precisa de Atlas
+npm test          # 66 testes; sobe um Mongo em memoria, nao precisa de Atlas
 
-cp .env.example .env          # ajuste MONGODB_URI se for usar Atlas
-npm run seed  --workspace app1   # allow-list de merchants + agente da demo
-npm run dev   --workspace app1   # Autoridade em :3001
+npm run dev       # Autoridade :3001 · lojas :4001-4003 · UI :5173
 ```
+
+Abra **http://localhost:5173**. Sem `MONGODB_URI` a Autoridade sobe com Mongo em memória e
+já semeia a allow-list e o agente da demo — não precisa de Atlas para ver rodando.
+
+Roteiro de 2 minutos: **Mandate plan** → criar mandato · **Agent chat** → pedir "runner"
+(o agente compara as duas lojas e compra a mais barata que cabe) · trocar a estratégia para
+*cheapest overall* e ver a Autoridade recusar · **Revoke** no topo → tentar de novo e ver falhar ·
+**Audit trail** → clicar na compra e ver o veredito regra a regra.
 
 Estrutura:
 
@@ -57,8 +64,10 @@ app1/src/authority/ticket.js      # bilhete assinado do agente (HMAC)
 app1/src/authority/introspect.js  # /introspect: as amarras em ordem
 app1/src/authority/routes.js      # rotas + autenticacao (quem voce e nunca vem do corpo)
 app1/src/authority/vault.js       # cofre/PSP MOCK (cartao e Pix)
+app1/src/agent/                   # o agente: so fala HTTP, nao alcanca o banco
 app1/src/shared/messages.js       # dicionario i18n + mandato em linguagem natural
-app1/test/                        # motor, bilhete e integracao
+app2/src/                         # duas lojas + a nao-registrada, cada uma com seu adaptador
+ui/src/                           # Trusted Surface (React + Vite + Tailwind)
 ```
 
 ## Stack recomendada
@@ -66,7 +75,7 @@ app1/test/                        # motor, bilhete e integracao
 - **Backend:** Node.js + Express
 - **Banco:** MongoDB (Atlas) + Mongoose
 - **Frontend (App 1):** React + Tailwind + Vite
-- **Agente:** orquestração via Claude API (o modelo conversa, busca no catálogo e decide dentro do mandato)
+- **Agente:** orquestração via **OpenAI API** (o modelo conversa, busca no catálogo e propõe dentro do mandato)
 - **Lojas:** Node/Express simples, cada uma com seu catálogo e adaptador de vocabulário
 
 Ajuste se necessário; a arquitetura não depende dessas escolhas.

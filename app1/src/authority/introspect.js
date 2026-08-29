@@ -84,6 +84,9 @@ export async function introspect(body, { merchantId }) {
     purchase,
     idempotencyKey: idempotencyKey ?? null,
     actor: { type: "agent", id: ticket.agentId },
+    // O veredito regra a regra vai para o trilho: uma decisão sobre dinheiro
+    // tem que poder ser reconstituída, não só relembrada pelo resultado.
+    trace: decision.trace ?? [],
   };
 
   // --- Escalonamento: a AUTORIDADE grava a pendência.  O agente não escreve nada.
@@ -183,7 +186,7 @@ export async function introspect(body, { merchantId }) {
     return remember(failed);
   }
 
-  const response = { valid: true, receiptId: receipt.receiptId };
+  const response = { valid: true, receiptId: receipt.receiptId, trace: decision.trace ?? [] };
   await audit({
     ...base,
     event: "purchase_decision",
