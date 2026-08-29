@@ -3,11 +3,11 @@
  *
  * Revogar é irreversível e encerra o mandato, então a caixa faz três coisas
  * que uma confirmação genérica não faria: diz **o que exatamente será
- * encerrado**, exige a humana digitar a confirmação (evita o clique reflexo),
+ * encerrado**, exige o humano digitar a confirmação (evita o clique reflexo),
  * e avisa que o ato fica registrado no trilho.
  *
  * O que ela NÃO faz é decidir qualquer coisa: quem revoga é a Autoridade,
- * quando a humana confirma.  Esta tela só coleta a intenção.
+ * quando o humano confirma.  Esta tela só coleta a intenção.
  */
 
 import { useEffect, useState } from "react";

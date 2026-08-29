@@ -13,7 +13,7 @@ import { Mandate, Merchant, Agent, Approval, Proposal, AuditLog } from "./models
 import { mandateStatus } from "./engine.js";
 import { introspect } from "./introspect.js";
 import { opaqueId } from "./ticket.js";
-import { tokenize, listMethods } from "./vault.js";
+import { tokenize } from "./vault.js";
 import { humanReadable, reasonText } from "../shared/messages.js";
 
 const sha256 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
@@ -72,6 +72,9 @@ export function buildRouter() {
     const agent = await Agent.findById(agentId).lean();
     // O humano só pode dar mandato ao PRÓPRIO agente.
     if (!agent || agent.humanId !== req.humanId) return res.status(403).json({ error: "not_your_agent" });
+
+    // Um mandato que já nasce expirado não é autorização, é ruído no registro.
+    if (new Date(expiresAt) <= new Date()) return res.status(400).json({ error: "expiresAt_in_the_past" });
 
     const draft = {
       mode,
@@ -182,16 +185,31 @@ export function buildRouter() {
   });
 
   r.get("/proposals", requireHuman, async (req, res) => {
-    const list = await Proposal.find({ humanId: req.humanId, status: "pending" }).lean();
+    const list = await Proposal.find({ humanId: req.humanId, status: "pending" })
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(
       list.map((p) => ({
         proposalId: p._id,
         agentId: p.agentId,
         draft: p.draft,
         rationale: p.rationale,
+        createdAt: p.createdAt,
+        // A frase vem do MESMO renderizador que grava o mandato: o humano revisa
+        // exatamente o que será verificado, não uma descrição paralela.
         humanReadable: humanReadable(p.draft, locale(req)),
       }))
     );
+  });
+
+  r.post("/proposals/:id/discard", requireHuman, async (req, res) => {
+    const p = await Proposal.findOneAndUpdate(
+      { _id: req.params.id, humanId: req.humanId, status: "pending" },
+      { $set: { status: "discarded" } },
+      { new: true }
+    ).lean();
+    if (!p) return res.status(404).json({ error: "unknown_proposal" });
+    res.json({ ok: true });
   });
 
   /* --- Introspecção: chamada pela LOJA ----------------------------- */
@@ -281,19 +299,6 @@ export function buildRouter() {
     }
   });
 
-  r.get("/vault/methods", requireHuman, async (req, res) => {
-    const methods = listMethods(req.humanId);
-    // Quais mandatos apontam para cada ref: é o que dá sentido a "desativar".
-    const mandates = await Mandate.find({ humanId: req.humanId }).lean();
-    res.json(
-      methods.map((m) => ({
-        ...m,
-        usedBy: mandates
-          .filter((x) => x.paymentMethodRef === m.paymentMethodRef)
-          .map((x) => ({ mandateId: x._id, status: mandateStatus(x), humanReadable: x.humanReadable })),
-      }))
-    );
-  });
 
   return r;
 }

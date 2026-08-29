@@ -26,11 +26,20 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, authorityUrl }
 
   app.get("/health", (_req, res) => res.json({ ok: true, store: id, name }));
 
+  // Busca literal, de proposito: a loja casa strings, ela nao adivinha intencao.
+  // Quem faz o casamento semantico ("tenis de corrida" -> "Runner Shoe") e o
+  // agente, do outro lado, olhando o catalogo inteiro. E seguro porque descoberta
+  // nao e o caminho do dinheiro -- ali quem decide e o motor deterministico.
+  const norm = (s) =>
+    String(s ?? "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+
   app.get("/catalog", (req, res) => {
-    const q = String(req.query.q ?? "").toLowerCase();
-    const items = common().filter(
-      (p) => !q || p.name.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)
-    );
+    const tokens = norm(req.query.q).split(/\s+/).filter(Boolean);
+    const items = common().filter((p) => {
+      if (tokens.length === 0) return true; // sem termo -> catalogo inteiro
+      const hay = norm([p.name, p.category, p.brand, p.color, p.ship_country].join(" "));
+      return tokens.some((tk) => hay.includes(tk));
+    });
     res.json({ merchantId: id, name, items });
   });
 

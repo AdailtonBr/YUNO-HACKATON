@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node src/server.js",
-    "seed": "node src/seed.js",
+    "dev": "node --env-file-if-exists=../.env src/server.js",
+    "seed": "node --env-file-if-exists=../.env src/seed.js",
     "test": "node --test --test-force-exit \"test/**/*.test.js\""
   },
   "dependencies": {

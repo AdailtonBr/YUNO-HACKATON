@@ -27,28 +27,11 @@ export function tokenize({ rail, instrument, humanId }) {
   const label =
     rail === "card" ? `•••• ${String(instrument?.number ?? "").slice(-4)}` : instrument?.key ?? "pix";
   // Guardamos o cru aqui dentro e devolvemos só a ref e um rótulo curto.  O
-  // rótulo existe para a humana reconhecer o método; não reconstrói o instrumento.
+  // rótulo existe para o humano reconhecer o método; não reconstrói o instrumento.
   vault.set(ref, { rail, instrument, humanId, label, createdAt: new Date() });
   return { paymentMethodRef: ref, rail, label };
 }
 
-/**
- * O que a Trusted Surface pode mostrar sobre os métodos vinculados.  Repare no
- * que NÃO sai daqui: `instrument`.  O número cru entrou no cofre e não volta —
- * nem para a humana, nem para a UI, e muito menos para o agente.
- */
-export function listMethods(humanId) {
-  return [...vault.entries()]
-    .filter(([, v]) => v.humanId === humanId)
-    .map(([ref, v]) => ({
-      paymentMethodRef: ref,
-      rail: v.rail,
-      label: v.label,
-      // Cartão é reversível (chargeback); Pix, não. A diferença muda o risco.
-      reversible: v.rail === "card",
-      createdAt: v.createdAt,
-    }));
-}
 
 /**
  * A Autoridade escolhe o trilho pelo TIPO da ref — o chamador não escolhe.

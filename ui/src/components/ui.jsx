@@ -2,7 +2,7 @@
  * Primitivas visuais.  Sem lógica de domínio.
  *
  * A regra que atravessa todas: valor medido ou decidido pelo sistema aparece em
- * mono; texto dirigido à humana aparece em sans.  Se está em mono, dá para
+ * mono; texto dirigido ao humano aparece em sans.  Se está em mono, dá para
  * conferir contra o mandato.
  */
 

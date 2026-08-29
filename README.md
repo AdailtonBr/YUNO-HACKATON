@@ -19,6 +19,8 @@ Estes `.md` são a fonte da verdade do projeto. Antes de implementar qualquer pa
 6. Use `docs/06-decision-log.md` para produzir o **Decision Log** (deliverable obrigatório) e para não contradizer decisões já tomadas.
 7. Siga `docs/07-build-plan.md` para a **ordem de implementação** e o roteiro da demo.
 8. Consulte `docs/08-scaling.md` para o **caminho de escala** do modelo de id opaco — nada ali entra no MVP; serve para defender a escolha quando perguntarem "e em escala?".
+9. Leia `docs/09-agent.md` para entender **o que é o agente** (cérebro + mãos + corpo), as tools, o loop, e por que um LLM no comando não é um risco.
+10. Leia `docs/11-fluxo-producao.md` para o **ciclo completo de uma compra** e o ponto único onde a **Yuno** entra.
 
 **Princípio que atravessa tudo:** a autorização é imposta no servidor (na Autoridade), nunca no agente. O agente rascunha e executa; ele nunca decide se uma compra é válida. Identidade e valores nunca são auto-declarados — só vale o que foi autenticado ou atestado pela parte de direito.
 

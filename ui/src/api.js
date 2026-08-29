@@ -6,8 +6,8 @@
  * mexe em mais nada.
  */
 
-export const HUMAN_ID = "user_marina";
-export const AGENT_ID = "agent_marina";
+export const HUMAN_ID = "user_michael";
+export const AGENT_ID = "agent_michael";
 
 const headers = (locale) => ({
   "content-type": "application/json",
@@ -40,15 +40,15 @@ export const api = {
     req("GET", `/api/audit${mandateId ? `?mandateId=${mandateId}` : ""}`, { locale }),
   tokenize: (rail, instrument, locale) =>
     req("POST", "/api/vault/tokenize", { body: { rail, instrument }, locale }),
-  methods: (locale) => req("GET", "/api/vault/methods", { locale }),
+
+  // Propostas de mandato: o agente deposita, o humano confirma.
+  proposals: (locale) => req("GET", "/api/proposals", { locale }),
+  discardProposal: (id, locale) => req("POST", `/api/proposals/${id}/discard`, { locale }),
 
   // Agente (papel separado; a UI fala com ele por rotas próprias)
-  catalogs: (q, includeUnregistered, locale) =>
-    req("GET", `/api/agent/catalogs?q=${encodeURIComponent(q)}&includeUnregistered=${!!includeUnregistered}`, { locale }),
-  shop: (payload, locale) => req("POST", "/api/agent/shop", { body: payload, locale }),
-
-  // Lojas (a visão do merchant)
-  verifications: (store) => req("GET", `/${store}/verifications`),
+  chat: (payload, locale) => req("POST", "/api/agent/chat", { body: payload, locale }),
+  resetChat: (conversationId, locale) =>
+    req("POST", "/api/agent/reset", { body: { conversationId }, locale }),
 };
 
 export const money = (cents, currency = "BRL", locale = "en") =>

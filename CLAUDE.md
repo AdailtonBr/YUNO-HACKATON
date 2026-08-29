@@ -10,7 +10,7 @@ Dois apps: **App 1** (Agente + Autoridade de Mandato + UI) e **App 2** (duas loj
 
 ## Idioma — LEIA COM ATENÇÃO
 
-- **Trabalho e planejamento com a Marina:** português (PT-BR). Converse, explique e comente em PT-BR.
+- **Trabalho e planejamento com quem mantém o repo:** português (PT-BR). Converse, explique e comente em PT-BR.
 - **Entrega final do app:** **inglês.** O produto final — todo texto de UI, mensagens ao usuário, README público, slides e qualquer conteúdo voltado ao usuário — deve ser em **inglês**. A construção inicial é em PT-BR, mas o alvo é um app entregue em inglês.
 - **Regra prática:** escreva o código já com identificadores e JSON em inglês (isso nunca muda). Para strings visíveis ao usuário, **estruture para i18n desde o começo** (não hardcode PT-BR espalhado) — de preferência um dicionário de strings, para a virada PT-BR → inglês ser trivial no fim. Quando em dúvida sobre texto de UI, escreva em inglês.
 - Comentários de código podem ficar em PT-BR durante a construção; na entrega, prefira comentários em inglês nos trechos que forem para o repo público.
@@ -29,7 +29,7 @@ Estas não são negociáveis. Qualquer implementação que as viole está errada
 8. **Nomes de atributo das constraints são derivados do catálogo real das lojas** — o agente nunca inventa nomes. É o que garante o casamento `mandato.attr == catalogo.attr`.
 9. **Nenhum LLM no caminho crítico da transação.** IA rascunha; o determinístico (motor de constraints) decide. Reconciliação semântica de nomes, se existir, roda no cadastro da loja (offline, revisão humana) e é congelada como mapa determinístico.
 
-## Decisões-chave já tomadas (não reabrir sem avisar a Marina)
+## Decisões-chave já tomadas (não reabrir sem avisar quem mantém o repo)
 
 - **Verificação = abordagem B** (referência opaca + `/introspect`), **não** JWT assinado. Motivo: revogação ao vivo trivial, selective disclosure, menos cripto. (AP2 usa JWT/VC assinado — é a alternativa citada no decision log.)
 - **Motor de constraints genérico**: lista de `{attr, op, value, on_missing, on_fail}`, vocabulário aberto. Nunca `if (produto === "x")`.
@@ -68,9 +68,11 @@ Siga `docs/07-build-plan.md`. Resumo: **fluxo feliz de ponta a ponta primeiro**,
 - `docs/06-decision-log.md` — as decisões + como escrever o deliverable.
 - `docs/07-build-plan.md` — build faseado, real vs mock, roteiro da demo.
 - `docs/08-scaling.md` — caminho de escala do modelo de id opaco (não implementado no MVP; existe para defender "e em escala?").
+- `docs/09-agent.md` — o agente: cérebro (LLM) + mãos (tools) + corpo (orquestrador), o loop, e por que as decisões do modelo são sugestões.
+- `docs/11-fluxo-producao.md` — a compra de ponta a ponta e onde entra a Yuno (execução do pagamento, depois do "sim").
 
-## Estilo de trabalho com a Marina
+## Estilo de trabalho
 
-- Ela quer **entender o porquê** e **dona do próprio código**: faça mudanças cirúrgicas e explique o raciocínio; não reescreva o que não foi pedido.
-- Ela testa a consistência lógica e sinaliza contradições — seja causalmente explícito.
+- Quem mantém este repo quer **entender o porquê** e ser **dona do próprio código**: faça mudanças cirúrgicas e explique o raciocínio; não reescreva o que não foi pedido.
+- Testa a consistência lógica e sinaliza contradições — seja causalmente explícito.
 - Priorize decisões **defensáveis** (a defesa técnica pesa tanto quanto a demo) sobre features vistosas.

@@ -28,5 +28,5 @@ await seed();
 buildApp().listen(PORT, () => {
   console.log(`Authority listening on :${PORT}`);
   console.log(`  mongo: ${uri}${ephemeral ? "  (in-memory — data is lost on restart)" : ""}`);
-  console.log(`  seeded: store_a, store_b (allow-list) + agent_marina`);
+  console.log(`  seeded: store_a, store_b (allow-list) + agent_michael`);
 });

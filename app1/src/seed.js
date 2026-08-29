@@ -11,9 +11,9 @@ import crypto from "node:crypto";
 import { Merchant, Agent } from "./authority/models.js";
 
 export const DEMO = {
-  humanId: "user_marina",
-  agentId: "agent_marina",
-  agentSecret: "demo-agent-secret-marina",
+  humanId: "user_michael",
+  agentId: "agent_michael",
+  agentSecret: "demo-agent-secret-michael",
   merchants: [
     { _id: "store_a", name: "Store A", apiKey: "demo-key-store-a" },
     { _id: "store_b", name: "Store B", apiKey: "demo-key-store-b" },

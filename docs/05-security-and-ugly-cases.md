@@ -44,11 +44,11 @@ A abordagem B **elimina** a superfície de JWT (não há `alg:none`, confusão d
 
 ## O roubo de referências (a pergunta "debitar na conta de outra pessoa")
 
-Três amarras impedem a Mallory de usar o mandato/instrumento da Marina:
+Três amarras impedem a Mallory de usar o mandato/instrumento do Michael:
 
 1. O `paymentMethodRef` **não viaja com o agente** — fica no mandato, no cofre da Autoridade. Não há ponteiro solto para roubar.
-2. Mesmo que a Mallory roube o `mandateId`, ela **não consegue assinar um bilhete válido** — não tem o segredo do agente da Marina → `evaluate` recusa. Vale também para uma **loja registrada** que viu o `mandateId` numa compra legítima.
-3. O ponteiro é **direcional**: só autoriza cobrar *a fonte da Marina → a favor da loja registrada*. Não existe operação "credita alguém". A Mallory não consegue se pôr como destino nem redirecionar a cobrança.
+2. Mesmo que a Mallory roube o `mandateId`, ela **não consegue assinar um bilhete válido** — não tem o segredo do agente do Michael → `evaluate` recusa. Vale também para uma **loja registrada** que viu o `mandateId` numa compra legítima.
+3. O ponteiro é **direcional**: só autoriza cobrar *a fonte do Michael → a favor da loja registrada*. Não existe operação "credita alguém". A Mallory não consegue se pôr como destino nem redirecionar a cobrança.
 
 ## Agente adversarial (bonus)
 

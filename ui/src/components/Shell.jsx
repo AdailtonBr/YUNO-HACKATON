@@ -12,7 +12,9 @@
 import { t } from "../i18n.js";
 import { Chip, Label, Meter } from "./ui.jsx";
 
-const NAV = ["chat", "market", "approvals", "plan", "audit", "payment"];
+// As quatro telas da Fase 3 do plano (propostas, aprovacoes, mandatos,
+// auditoria), mais a superficie do agente, que e a porta de entrada.
+const NAV = ["chat", "proposals", "approvals", "mandates", "audit"];
 
 export default function Shell({
   locale,
@@ -20,7 +22,7 @@ export default function Shell({
   tab,
   setTab,
   mandate,
-  approvalsCount,
+  counts = {},
   onRevoke,
   children,
 }) {
@@ -61,7 +63,7 @@ export default function Shell({
 
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden font-mono text-[11.5px] text-stone-500 md:inline">
-              {T("topbar.agent")} <span className="text-stone-800">agent_marina</span>
+              {T("topbar.agent")} <span className="text-stone-800">agent_michael</span>
             </span>
 
             <div className="flex overflow-hidden rounded border border-stone-300">
@@ -106,9 +108,9 @@ export default function Shell({
                   }`}
                 >
                   {T(`nav.${k}`)}
-                  {k === "approvals" && approvalsCount > 0 && (
+                  {counts[k] > 0 && (
                     <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-amber-800">
-                      {approvalsCount}
+                      {counts[k]}
                     </span>
                   )}
                 </button>
