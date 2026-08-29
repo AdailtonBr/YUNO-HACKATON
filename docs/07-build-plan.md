@@ -60,6 +60,7 @@ Ordem de implementação pensada para ter, o quanto antes, o **fluxo feliz de po
 - Fluxo de **disputa** (bonus): humano nega uma compra na UI → mostra o `audit_log` resolvendo.
 - Condições ricas (bonus): `maxUses`/`usedCount` ("até N vezes"), `price/lte` ("abaixo de R$X").
 - Roteiro de **agente adversarial** (bonus): mostrar que manipular a conversa não cria/alarga mandato nem passa compra fora do teto.
+- **Painel de operador nas lojas (App 2)** — pedido para uma fase futura. Uma tela por loja onde se **edita o preço** de um produto ao vivo, para ver o agente mudar de comportamento (o mais barato deixa de caber; a comparação troca de loja; o bilhete assinado deixa de casar se o preço mudar entre a busca e a compra). É tela da **loja**, não da Trusted Surface — o merchant mexendo no catálogo dele. Hoje os catálogos são vistos em `GET /catalog` de cada loja (`:4001`, `:4002`, `:4003`).
 
 ---
 

@@ -22,6 +22,17 @@ import { searchCatalogs, compare, attemptPurchase } from "./agent.js";
 const API = "https://api.openai.com/v1/chat/completions";
 
 const model = () => process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
+
+/**
+ * `price` é e continua sendo centavos — é assim que as constraints comparam.
+ * Mas o modelo estava repassando "9250" para o humano, que não fala em centavos.
+ * Em vez de pedir a conversão no prompt (e torcer), a tool entrega as duas
+ * formas: a de máquina e a de gente.
+ */
+const display = (cents, currency = "BRL") =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(cents / 100);
+
+const withDisplay = (item) => ({ ...item, price_display: display(item.price, item.currency) });
 const apiKey = () => process.env.OPENAI_API_KEY;
 
 /**
@@ -69,7 +80,7 @@ HARD RULES
 - You never create or widen a mandate. propose_mandate only drafts; the human authorizes it on a separate screen. If they ask you to raise a limit, tell them they must authorize a new proposal.
 - You never decide whether a purchase is allowed. The Authority decides. Report its answer as given, including refusals. Never claim a purchase succeeded unless the tool said so.
 - Constraint attribute names must come from the catalog you actually saw. Do not invent names.
-- price is in cents. 100.00 BRL is 10000.
+- price is in cents, because that is what the rules compare. NEVER show cents to the human — always use the price_display field the tools give you ("R$ 98,00"), never "9800" or "9800 centavos".
 - Be brief. Two or three sentences. No bullet lists unless comparing options.`;
 
 const TOOLS = [
@@ -202,7 +213,11 @@ export async function runTurn({ history, message, mandate, deps }) {
     ...(mandate
       ? [{
           role: "system",
-          content: `The human has an authorized mandate you may buy under: mandateId=${mandate.mandateId}, rules=${JSON.stringify(mandate.constraints)}, mode=${mandate.mode}, purchases left=${mandate.maxUses - mandate.usedCount}.`,
+          content:
+            `The human has a mandate: mandateId=${mandate.mandateId}, rules=${JSON.stringify(mandate.constraints)}, ` +
+            `mode=${mandate.mode}, purchases used=${mandate.usedCount}/${mandate.maxUses}. ` +
+            `Do not try to judge whether it is still valid — it may have been revoked or expired since. ` +
+            `Attempt the purchase and report whatever the Authority answers.`,
         }]
       : [{ role: "system", content: "The human has no authorized mandate yet. You cannot buy; you can search and propose." }]),
     ...history,
@@ -240,6 +255,12 @@ export async function runTurn({ history, message, mandate, deps }) {
   return { text: "", events, history: messages.slice(3) };
 }
 
+/** Aceita o id (`store_a`) ou o nome exibido (`Store A`), sem caixa. */
+const findStore = (stores, ref) => {
+  const want = String(ref ?? "").toLowerCase().replace(/\s+/g, "_");
+  return stores.find((st) => st.id.toLowerCase() === want);
+};
+
 async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
   if (name === "search_catalog") {
     let items = await searchCatalogs(deps.stores, args.query ?? "");
@@ -260,7 +281,7 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
       note: fellBack
         ? `No product matched "${args.query}" literally. Returning the full catalog — match it to what the human asked yourself.`
         : undefined,
-      items: items.map(({ storeUrl, ...i }) => i),
+      items: items.map(({ storeUrl, ...i }) => withDisplay(i)),
       attribute_profile: attributeProfile(items),
     };
   }
@@ -268,13 +289,15 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
   if (name === "get_product") {
     // Buscamos de novo na loja em vez de reusar o catálogo em memória: o preço
     // pode ter mudado, e é o valor ATESTADO agora que vai para o bilhete.
-    const store = deps.stores.find((st) => st.id === args.merchantId);
-    if (!store) return { ok: false, error: "unknown_merchant" };
+    const store = findStore(deps.stores, args.merchantId);
+    if (!store) {
+      return { ok: false, error: "unknown_merchant", known: deps.stores.map((st) => st.id) };
+    }
     const items = await searchCatalogs([store], "");
     const item = items.find((i) => i.productId === args.productId);
     if (!item) return { ok: false, error: "unknown_product" };
     const { storeUrl, ...clean } = item;
-    return { ok: true, product: clean };
+    return { ok: true, product: withDisplay(clean) };
   }
 
   if (name === "propose_mandate") {
@@ -326,10 +349,23 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
 
   if (name === "buy") {
     if (!mandate) return { ok: false, error: "no_authorized_mandate" };
-    const item = lastCatalog.find(
-      (i) => i.productId === args.productId && i.merchantId === args.merchantId
+    // O catálogo é rebuscado se o modelo não pesquisou neste turno: exigir a
+    // ordem certa das chamadas é rigor que não protege nada — o que protege é a
+    // Autoridade, adiante.
+    const universe = lastCatalog.length ? lastCatalog : await searchCatalogs(deps.stores, "");
+    const wanted = String(args.merchantId ?? "").toLowerCase();
+    const item = universe.find(
+      (i) =>
+        i.productId === args.productId &&
+        (i.merchantId.toLowerCase() === wanted || i.merchantName.toLowerCase() === wanted)
     );
-    if (!item) return { ok: false, error: "unknown_product", hint: "call search_catalog first" };
+    if (!item) {
+      return {
+        ok: false,
+        error: "unknown_product",
+        available: universe.map((i) => ({ productId: i.productId, merchantId: i.merchantId })),
+      };
+    }
 
     const result = await attemptPurchase({
       mandateId: args.mandateId ?? mandate.mandateId,

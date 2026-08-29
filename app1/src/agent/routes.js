@@ -90,12 +90,20 @@ export function buildAgentRouter() {
     if (!message?.trim()) return res.status(400).json({ error: "empty_message" });
 
     // O agente lê o mandato pela porta pública, como qualquer cliente.
+    //
+    // Repare no que NÃO fazemos aqui: filtrar por status.  Se o mandato existe,
+    // ele vai para o agente mesmo revogado ou expirado — e o agente TENTA.  Quem
+    // recusa é a Autoridade, na hora da compra.
+    //
+    // Não é detalhe de demo: é a abordagem B levada a sério.  "Ainda vale?" é
+    // pergunta cujo lugar de resposta é o instante da compra.  Se o agente
+    // pré-checasse o status, ele estaria reimplementando a verificação do lado
+    // errado da rede — e um agente com bug simplesmente não a faria.
     let mandate = null;
     if (mandateId) {
       mandate = await fetch(`${authorityUrl()}/mandates/${mandateId}`)
         .then((x) => (x.ok ? x.json() : null))
         .catch(() => null);
-      if (mandate && mandate.status !== "active") mandate = null;
     }
 
     const agent = agentCredential();

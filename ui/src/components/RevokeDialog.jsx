@@ -19,8 +19,19 @@ export default function RevokeDialog({ locale, mandate, onClose, onConfirm }) {
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const phrase = `REVOKE ${mandate?.mandateId?.slice(0, 12) ?? ""}`;
-  const matches = typed.trim() === phrase;
+  // A fricção é proposital — revogar é irreversível, e um clique reflexo não
+  // deve bastar.  Mas ela tem que ser VENCÍVEL: a versão anterior pedia o id
+  // truncado enquanto o botão de copiar ao lado copiava o id inteiro, então
+  // copiar-e-colar (a ação óbvia) deixava o botão cinza para sempre.
+  const shortId = mandate?.mandateId?.slice(0, 12) ?? "";
+  const phrase = `REVOKE ${shortId}`;
+
+  // Aceita a forma curta OU o id inteiro, sem depender de caixa nem de espaço
+  // sobrando.  Quem quis revogar demonstrou intenção nas duas formas.
+  const normalize = (v) => v.trim().replace(/\s+/g, " ").toLowerCase();
+  const matches =
+    normalize(typed) === normalize(phrase) ||
+    normalize(typed) === normalize(`REVOKE ${mandate?.mandateId ?? ""}`);
 
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
@@ -74,7 +85,12 @@ export default function RevokeDialog({ locale, mandate, onClose, onConfirm }) {
 
           <div>
             <Label>{T("revoke.typeToConfirm")}</Label>
-            <div className="mt-1.5 flex items-center gap-3">
+            {/* A frase exigida fica VISÍVEL e selecionável, não só de placeholder:
+                o humano não deveria ter que adivinhar o formato. */}
+            <p className="mt-1.5 select-all rounded border border-stone-200 bg-stone-50 px-3 py-2 font-mono text-[13px] text-stone-700">
+              {phrase}
+            </p>
+            <div className="mt-2 flex items-center gap-3">
               <input
                 autoFocus
                 value={typed}
