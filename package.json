@@ -1,0 +1,22 @@
+{
+  "name": "mandato-agentico",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "app1",
+    "app2",
+    "ui"
+  ],
+  "scripts": {
+    "test": "npm test --workspace app1",
+    "dev": "concurrently -n authority,stores,ui -c blue,green,magenta \"npm:dev:authority\" \"npm:dev:stores\" \"npm:dev:ui\"",
+    "dev:authority": "npm run dev --workspace app1",
+    "dev:stores": "npm run dev --workspace app2",
+    "dev:ui": "npm run dev --workspace ui",
+    "seed": "npm run seed --workspace app1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
