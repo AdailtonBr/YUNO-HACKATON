@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "seed": "node src/seed.js",
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test --test-force-exit \"test/**/*.test.js\""
   },
   "dependencies": {
     "express": "^4.21.2",
