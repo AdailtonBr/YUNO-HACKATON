@@ -109,7 +109,6 @@ export default function App() {
               setSelectedId(id);
               setTab("chat");
             }}
-            reload={reload}
             onRevoke={setRevoking}
           />
         )}
