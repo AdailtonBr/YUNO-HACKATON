@@ -8,23 +8,53 @@
  *
  * Repare que os dois formatos internos não têm nenhum campo em comum: nomes
  * diferentes, idiomas diferentes, preço em reais vs. centavos, taxonomia
- * própria.  É de propósito — é o que prova que o adaptador é suficiente.
+ * própria, estoque com outro nome.  É de propósito — é o que prova que o
+ * adaptador é suficiente.
+ *
+ * O adaptador tem DOIS sentidos.  `toCommon` lê; `setPrice`/`setAvailable`
+ * escrevem de volta no formato interno, para o painel do operador da loja
+ * poder mexer no preço sem saber nada do vocabulário comum.
+ *
+ * Os catálogos se cruzam de propósito: produtos que existem nas duas lojas com
+ * preços e atributos diferentes (é o que faz a comparação valer), produtos
+ * exclusivos de cada uma, e alguns casos plantados — um item da China para a
+ * constraint de país barrar, e software sem `ship_country` para exercitar o
+ * `on_missing` de verdade.
  */
 
 /* ----------------------------- Loja A ------------------------------ */
 /* Formato interno: português, preço em reais (float), taxonomia própria. */
 
 const CATALOG_A = [
-  { sku: "TEN-001", nome: "Runner Shoe", preco_reais: 98.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "preto", marca: "Acme" },
+  // calçado — o "Runner Shoe" existe nas duas lojas, em variantes diferentes
+  { sku: "TEN-001", nome: "Runner Shoe", preco_reais: 98.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
   // Mais barato, mas vem da China: existe para a constraint de país barrar.
-  { sku: "TEN-002", nome: "Runner Shoe", preco_reais: 92.5, tipo: "calcado", origem: "CN", numeracao: "40", cor: "preto", marca: "Acme" },
-  { sku: "TEN-003", nome: "Runner Shoe", preco_reais: 95.0, tipo: "calcado", origem: "BR", numeracao: "42", cor: "azul", marca: "Acme" },
-  { sku: "TEN-004", nome: "Trail Shoe", preco_reais: 310.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "verde", marca: "Trilha" },
-  // Só na Loja A. Sem `origem` no cadastro: exercita `on_missing` de verdade.
-  { sku: "SUB-001", nome: "Cloud Plan", preco_reais: 40.0, tipo: "software" },
+  { sku: "TEN-002", nome: "Runner Shoe", preco_reais: 92.5, tipo: "calcado", origem: "CN", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
+  { sku: "TEN-003", nome: "Runner Shoe", preco_reais: 95.0, tipo: "calcado", origem: "BR", numeracao: "42", cor: "azul", marca: "Acme", disponivel: true },
+  { sku: "TEN-004", nome: "Trail Shoe", preco_reais: 310.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "verde", marca: "Trilha", disponivel: true },
+  { sku: "TEN-005", nome: "Court Shoe", preco_reais: 145.0, tipo: "calcado", origem: "BR", numeracao: "41", cor: "branco", marca: "Acme", disponivel: true },
+
+  // eletrônico
+  { sku: "ELE-001", nome: "Studio Headphones", preco_reais: 249.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Sonora", disponivel: true },
+  { sku: "ELE-002", nome: "Mechanical Keyboard", preco_reais: 389.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Teclas", disponivel: true },
+  { sku: "ELE-003", nome: "Desk Lamp", preco_reais: 89.9, tipo: "eletronico", origem: "CN", cor: "branco", marca: "Lumi", disponivel: true },
+
+  // higiene
+  { sku: "HIG-001", nome: "Toothpaste", preco_reais: 12.9, tipo: "higiene", origem: "BR", marca: "Sorriso", disponivel: true },
+  { sku: "HIG-002", nome: "Sunscreen", preco_reais: 58.0, tipo: "higiene", origem: "BR", marca: "SolPro", disponivel: true },
+  { sku: "HIG-003", nome: "Shampoo", preco_reais: 27.5, tipo: "higiene", origem: "CN", marca: "Cabelo", disponivel: true },
+
+  // software — só na Loja A, e SEM `origem` no cadastro: é o que exercita
+  // `on_missing` de verdade, porque o atributo simplesmente não viaja.
+  { sku: "SUB-001", nome: "Cloud Plan", preco_reais: 40.0, tipo: "software", marca: "Nuvem", disponivel: true },
+  { sku: "SUB-002", nome: "Photo Editor License", preco_reais: 129.0, tipo: "software", marca: "Pixel", disponivel: true },
+
+  // evento
+  { sku: "EVT-001", nome: "Concert Ticket", preco_reais: 180.0, tipo: "evento", origem: "BR", marca: "Palco", disponivel: true },
+  { sku: "EVT-002", nome: "Museum Pass", preco_reais: 45.0, tipo: "evento", origem: "BR", marca: "Acervo", disponivel: true },
 ];
 
-const CATEGORY_A = { calcado: "calcado", software: "software", higiene: "higiene" };
+const CATEGORY_A = { calcado: "calcado", software: "software", higiene: "higiene", eletronico: "eletronico", evento: "evento" };
 
 const toCommonA = (p) => ({
   productId: p.sku,
@@ -40,18 +70,45 @@ const toCommonA = (p) => ({
   ...(p.marca ? { brand: p.marca } : {}),
 });
 
+// O outro sentido do adaptador: o painel fala em centavos (vocabulário comum),
+// a loja guarda em reais.  Quem traduz é a loja, como na leitura.
+const setPriceA = (p, cents) => {
+  p.preco_reais = cents / 100;
+};
+const setAvailableA = (p, available) => {
+  p.disponivel = available;
+};
+
 /* ----------------------------- Loja B ------------------------------ */
 /* Formato interno: inglês, preço já em centavos, outra taxonomia.      */
 
 const CATALOG_B = [
-  { id: "B-SNEAK-1", title: "Runner Shoe", amount_cents: 10500, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "black", maker: "Acme" },
+  // calçado — as mesmas famílias da Loja A, a preços e atributos diferentes
+  { id: "B-SNEAK-1", title: "Runner Shoe", amount_cents: 10500, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "black", maker: "Acme", in_stock: true },
   // O mesmo tênis mais barato que na Loja A: é o que faz a comparação valer.
-  { id: "B-SNEAK-2", title: "Runner Shoe", amount_cents: 9400, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "white", maker: "Acme" },
+  { id: "B-SNEAK-2", title: "Runner Shoe", amount_cents: 9400, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "white", maker: "Acme", in_stock: true },
+  { id: "B-SNEAK-3", title: "Runner Shoe", amount_cents: 8800, kind: "footwear", ships_from: "BR", shoe_size: "42", colour: "blue", maker: "Acme", in_stock: true },
+  { id: "B-TRAIL-1", title: "Trail Shoe", amount_cents: 29900, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "green", maker: "Trilha", in_stock: true },
   // Só na Loja B.
-  { id: "B-HEAD-1", title: "Studio Headphones", amount_cents: 25000, kind: "electronics", ships_from: "BR", colour: "black", maker: "Sonora" },
+  { id: "B-SKATE-1", title: "Skate Shoe", amount_cents: 8900, kind: "footwear", ships_from: "BR", shoe_size: "42", colour: "black", maker: "Rampa", in_stock: true },
+
+  // eletrônico
+  { id: "B-HEAD-1", title: "Studio Headphones", amount_cents: 23900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Sonora", in_stock: true },
+  { id: "B-KEY-1", title: "Mechanical Keyboard", amount_cents: 37900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Teclas", in_stock: true },
+  { id: "B-HUB-1", title: "USB-C Hub", amount_cents: 14900, kind: "electronics", ships_from: "BR", colour: "silver", maker: "Portas", in_stock: true },
+  { id: "B-MOUSE-1", title: "Wireless Mouse", amount_cents: 11900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Portas", in_stock: true },
+
+  // higiene
+  { id: "B-TOOTH-1", title: "Toothpaste", amount_cents: 1450, kind: "hygiene", ships_from: "BR", maker: "Sorriso", in_stock: true },
+  { id: "B-SUN-1", title: "Sunscreen", amount_cents: 5400, kind: "hygiene", ships_from: "BR", maker: "SolPro", in_stock: true },
+  { id: "B-SOAP-1", title: "Hand Soap", amount_cents: 990, kind: "hygiene", ships_from: "BR", maker: "Limpa", in_stock: true },
+
+  // evento
+  { id: "B-TICK-1", title: "Concert Ticket", amount_cents: 17500, kind: "event", ships_from: "BR", maker: "Palco", in_stock: true },
+  { id: "B-FILM-1", title: "Film Festival Pass", amount_cents: 12000, kind: "event", ships_from: "BR", maker: "Mostra", in_stock: true },
 ];
 
-const CATEGORY_B = { footwear: "calcado", electronics: "eletronico", hygiene: "higiene" };
+const CATEGORY_B = { footwear: "calcado", electronics: "eletronico", hygiene: "higiene", event: "evento", software: "software" };
 
 const toCommonB = (p) => ({
   productId: p.id,
@@ -65,16 +122,42 @@ const toCommonB = (p) => ({
   ...(p.maker ? { brand: p.maker } : {}),
 });
 
+// Esta loja já guarda em centavos, então a escrita é direta — e é justamente o
+// contraste com a Loja A que mostra que a tradução é problema DELA, não do
+// vocabulário comum.
+const setPriceB = (p, cents) => {
+  p.amount_cents = cents;
+};
+const setAvailableB = (p, available) => {
+  p.in_stock = available;
+};
+
 /* --------------------- Loja fora da allow-list --------------------- */
 /* Idêntica por fora; a diferença é que a Autoridade não a conhece.    */
 
 const CATALOG_FAKE = [
-  { sku: "FAKE-001", nome: "Runner Shoe", preco_reais: 29.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "preto", marca: "Acme" },
+  { sku: "FAKE-001", nome: "Runner Shoe", preco_reais: 29.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
+  { sku: "FAKE-002", nome: "Studio Headphones", preco_reais: 79.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Sonora", disponivel: true },
 ];
 
+const isAvailableA = (p) => p.disponivel !== false;
+const isAvailableB = (p) => p.in_stock !== false;
+
 export const STORES = {
-  store_a: { id: "store_a", name: "Store A", port: 4001, apiKey: "demo-key-store-a", catalog: CATALOG_A, toCommon: toCommonA },
-  store_b: { id: "store_b", name: "Store B", port: 4002, apiKey: "demo-key-store-b", catalog: CATALOG_B, toCommon: toCommonB },
+  store_a: {
+    id: "store_a", name: "Store A", port: 4001, apiKey: "demo-key-store-a",
+    catalog: CATALOG_A, toCommon: toCommonA,
+    setPrice: setPriceA, setAvailable: setAvailableA, isAvailable: isAvailableA,
+  },
+  store_b: {
+    id: "store_b", name: "Store B", port: 4002, apiKey: "demo-key-store-b",
+    catalog: CATALOG_B, toCommon: toCommonB,
+    setPrice: setPriceB, setAvailable: setAvailableB, isAvailable: isAvailableB,
+  },
   // Preço imbatível e nenhuma credencial válida: a Autoridade recusa na porta.
-  store_fake: { id: "store_fake", name: "Bargain Bin (unregistered)", port: 4003, apiKey: "nao-registrada", catalog: CATALOG_FAKE, toCommon: toCommonA },
+  store_fake: {
+    id: "store_fake", name: "Bargain Bin (unregistered)", port: 4003, apiKey: "nao-registrada",
+    catalog: CATALOG_FAKE, toCommon: toCommonA,
+    setPrice: setPriceA, setAvailable: setAvailableA, isAvailable: isAvailableA,
+  },
 };

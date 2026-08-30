@@ -14,15 +14,24 @@
  */
 
 import express from "express";
+import { panelHtml } from "./panel.js";
 
-export function buildStore({ id, name, apiKey, catalog, toCommon, authorityUrl }) {
+export function buildStore({ id, name, apiKey, catalog, toCommon, setPrice, setAvailable, isAvailable, authorityUrl }) {
   const app = express();
   app.use(express.json());
 
   // Trilho da loja: "o merchant vê sua verificação" (resultado esperado nº4).
   const verifications = [];
 
-  const common = () => catalog.map(toCommon);
+  // O catalogo publico so mostra o que a loja de fato tem: loja nao anuncia o
+  // que esta fora de estoque -- e tirar de estoque e uma das duas alavancas do
+  // painel do operador.
+  const avail = (p) => (isAvailable ? isAvailable(p) : true);
+  const common = () => catalog.filter(avail).map(toCommon);
+
+  // Inclui o indisponivel: e o que o painel precisa ver para poder repor.
+  const commonAll = () => catalog.map((p) => ({ ...toCommon(p), available: avail(p) }));
+  const findRaw = (productId) => catalog.find((p) => toCommon(p).productId === productId);
 
   app.get("/health", (_req, res) => res.json({ ok: true, store: id, name }));
 
@@ -99,6 +108,34 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, authorityUrl }
   });
 
   app.get("/verifications", (_req, res) => res.json({ merchantId: id, name, verifications: verifications.slice(0, 50) }));
+
+  /* ----------------------- painel do operador ----------------------- */
+  /*
+   * A escrita passa pelo ADAPTADOR (`setPrice`/`setAvailable`), que traduz do
+   * vocabulario comum de volta para o formato interno desta loja.  O painel
+   * fala em centavos e nao sabe nada de `preco_reais` nem de `amount_cents`:
+   * o adaptador e a fronteira nos dois sentidos, nao so na leitura.
+   *
+   * Mutacao em memoria -- reiniciar restaura o catalogo.  E mock, e assumido.
+   */
+  app.get("/products", (_req, res) => res.json({ merchantId: id, name, items: commonAll() }));
+
+  app.patch("/catalog/:productId", (req, res) => {
+    const raw = findRaw(req.params.productId);
+    if (!raw) return res.status(404).json({ error: "unknown_product" });
+
+    const { price, available } = req.body ?? {};
+    if (price != null) {
+      const cents = Math.round(Number(price));
+      if (!Number.isFinite(cents) || cents < 0) return res.status(400).json({ error: "invalid_price" });
+      setPrice(raw, cents);
+    }
+    if (available != null) setAvailable(raw, !!available);
+
+    res.json({ ok: true, product: { ...toCommon(raw), available: avail(raw) } });
+  });
+
+  app.get("/", (_req, res) => res.type("html").send(panelHtml(id, name)));
 
   return app;
 }

@@ -106,7 +106,7 @@ function ProposalDrafted({ locale, goToProposals }) {
   );
 }
 
-export default function AgentChat({ locale, mandate, reload, goToProposals }) {
+export default function AgentChat({ locale, mandate, whileAway = [], reload, goToProposals }) {
   const T = (k) => t(locale, k);
   const [log, setLog] = useState([]);
   const [draft, setDraft] = useState("");
@@ -155,6 +155,28 @@ export default function AgentChat({ locale, mandate, reload, goToProposals }) {
   return (
     <div className="mx-auto flex h-[calc(100vh-9rem)] max-w-3xl flex-col">
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pb-4 pr-1">
+        {/* Uma compra feita de madrugada tem que chegar até você.  O vigia não
+            conversa — então o que ele fez aparece aqui, antes da conversa. */}
+        {whileAway.length > 0 && (
+          <Panel tone="allow" className="px-4 py-3">
+            <Label>{T("chat.whileAway")}</Label>
+            <ul className="mt-1.5 space-y-1">
+              {whileAway.map((e, i) => (
+                <li key={i} className="font-mono text-[12.5px] text-emerald-900">
+                  {e.purchase?.productId} · {money(e.purchase?.price ?? 0, e.purchase?.currency, locale)} ·{" "}
+                  {e.merchantId} ·{" "}
+                  <span className="text-emerald-700">
+                    {new Date(e.ts).toLocaleString(locale === "pt" ? "pt-BR" : "en-US")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 font-sans text-[12.5px] leading-relaxed text-emerald-800">
+              {T("chat.whileAwayNote")}
+            </p>
+          </Panel>
+        )}
+
         {log.length === 0 && (
           <div className="mx-auto mt-16 max-w-md text-center">
             <p className="font-sans text-[14px] leading-relaxed text-stone-500">{T("chat.startHint")}</p>

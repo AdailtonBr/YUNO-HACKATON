@@ -331,6 +331,10 @@ export function buildRouter() {
         reason: e.reason ?? null,
         reasonText: reasonText(e.reason, locale(req)),
         receiptId: e.receiptId,
+        // Sai porque a UI distingue por ela o que o vigia comprou sozinho do
+        // que foi comprado na conversa (prefixo `watch:`).  Não é segredo: é
+        // derivada do próprio mandato, que é do humano que está perguntando.
+        idempotencyKey: e.idempotencyKey ?? null,
         trace: e.trace ?? [],
       }))
     );

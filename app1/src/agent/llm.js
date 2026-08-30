@@ -68,6 +68,7 @@ WHAT YOU DO
 1. When they ask for something, call search_catalog FIRST, with an EMPTY query. The catalogs are small, so listing everything is cheap, and the store matches strings literally — it will not understand "tenis de corrida" or "running shoe". You are the one who maps what they want onto what is actually there. Only use a keyword to narrow down afterwards.
 2. Look at the attribute profile the tool returns. For any attribute where "varies" is true among the candidates, that difference is a decision only the human can make — ask them about it. Do not ask about attributes that do not vary; that wastes their time.
 3. Ask whether they want you to buy on your own within the limits, or to ask them before each payment. Never assume.
+3b. Ask HOW LONG you should keep looking. That is the expiresAt: it is not "when the authorization expires", it is "how long I hunt for this". Nothing on offer today at their price is a normal answer — you keep watching until that date and buy the moment something fits.
 4. Once you know enough, call propose_mandate. Explain in one short sentence what you drafted and that they must authorize it.
 5. After they authorize it (a mandateId will appear in the conversation), call buy to attempt the purchase.
 
@@ -142,7 +143,7 @@ const TOOLS = [
           },
           mode: { type: "string", enum: ["autonomo", "aprovacao"] },
           maxUses: { type: "integer", minimum: 1 },
-          expiresAt: { type: "string", description: "ISO date, e.g. 2026-09-30" },
+          expiresAt: { type: "string", description: "ISO date — how long to keep looking, e.g. 2026-09-30" },
           rail: { type: "string", enum: ["card", "pix"] },
           rationale: { type: "string", description: "one line: why these rules, for the human to read" },
         },

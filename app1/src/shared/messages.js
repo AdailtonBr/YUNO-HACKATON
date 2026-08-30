@@ -110,16 +110,18 @@ const SUFFIX = {
     on_missing: " (ask me if the store does not report it)",
     autonomo: "buy automatically without asking me each time",
     aprovacao: "show me the cart and wait for my approval before paying",
-    uses: (n) => (n === 1 ? "a single purchase" : `up to ${n} purchases`),
-    valid: (d) => `valid until ${d}`,
+    uses: (n) => (n === 1 ? "one purchase, then the mandate closes" : `up to ${n} purchases`),
+    // Não é "a autorização expira em": é "eu vou estar procurando até".  O
+    // humano precisa consentir com o robô caçando preço, não só com o teto.
+    valid: (d) => `keep looking until ${d} and buy when something fits`,
   },
   "pt-BR": {
     on_fail: " (me perguntar se não bater)",
     on_missing: " (me perguntar se a loja não informar)",
     autonomo: "comprar automaticamente sem me perguntar a cada compra",
     aprovacao: "me mostrar o carrinho e esperar minha aprovação antes de pagar",
-    uses: (n) => (n === 1 ? "uma única compra" : `até ${n} compras`),
-    valid: (d) => `válido até ${d}`,
+    uses: (n) => (n === 1 ? "uma compra, e o mandato se encerra" : `até ${n} compras`),
+    valid: (d) => `procurar até ${d} e comprar quando aparecer`,
   },
 };
 

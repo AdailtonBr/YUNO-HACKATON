@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import dns from "node:dns";
 import { buildApp } from "./app.js";
 import { seed } from "./seed.js";
+import { startWatcher } from "./agent/watcher.js";
 
 const PORT = process.env.PORT ?? 3001;
 
@@ -60,6 +61,19 @@ async function connect() {
 
 const { ephemeral } = await connect();
 await seed();
+
+// O vigia: o que faz "procure até o fim do mês" valer de verdade.  Desligável
+// para quem quiser rodar a Autoridade sem nada comprando sozinho.
+if (process.env.WATCHER !== "off") {
+  startWatcher({
+    stores: [
+      { id: "store_a", url: process.env.STORE_A_URL ?? "http://127.0.0.1:4001" },
+      { id: "store_b", url: process.env.STORE_B_URL ?? "http://127.0.0.1:4002" },
+    ],
+    agentId: process.env.AGENT_ID ?? "agent_michael",
+    agentSecret: process.env.AGENT_SECRET ?? "demo-agent-secret-michael",
+  });
+}
 
 buildApp().listen(PORT, () => {
   console.log(`Authority listening on :${PORT}`);

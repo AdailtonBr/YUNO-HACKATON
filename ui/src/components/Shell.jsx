@@ -10,7 +10,7 @@
  */
 
 import { t } from "../i18n.js";
-import { Chip, Label, Meter } from "./ui.jsx";
+import { Chip, Label, Meter, TONE } from "./ui.jsx";
 
 // As quatro telas da Fase 3 do plano (propostas, aprovacoes, mandatos,
 // auditoria), mais a superficie do agente, que e a porta de entrada.
@@ -22,6 +22,8 @@ export default function Shell({
   tab,
   setTab,
   mandate,
+  mandates = [],
+  onSelectMandate,
   counts = {},
   onRevoke,
   children,
@@ -41,9 +43,29 @@ export default function Shell({
 
           <div className="h-5 w-px bg-stone-200" />
 
-          <Chip tone={tone} dot>
-            {mandate ? `${T(`status.${status}`)} · ${mandate.mandateId.slice(0, 12)}` : T("status.none")}
-          </Chip>
+          {/* Com mais de um mandato o chip vira seletor: qual deles o agente
+              usa é escolha da humana, não do primeiro da lista. */}
+          {mandates.length > 1 ? (
+            <label className="flex items-center gap-2">
+              <span className={`h-1.5 w-1.5 rounded-full ${TONE[tone].dot}`} />
+              <select
+                value={mandate?.mandateId ?? ""}
+                onChange={(e) => onSelectMandate?.(e.target.value)}
+                className="max-w-[280px] truncate rounded border border-stone-300 bg-white px-2 py-1 font-mono text-[11.5px] text-stone-800 outline-none focus:border-stone-800"
+                title={T("topbar.pick")}
+              >
+                {mandates.map((m) => (
+                  <option key={m.mandateId} value={m.mandateId}>
+                    {T(`status.${m.status}`)} · {m.humanReadable?.slice(0, 46) ?? m.mandateId}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <Chip tone={tone} dot>
+              {mandate ? `${T(`status.${status}`)} · ${mandate.mandateId.slice(0, 12)}` : T("status.none")}
+            </Chip>
+          )}
 
           {mandate && (
             <div className="hidden min-w-[180px] max-w-[260px] flex-1 sm:block">

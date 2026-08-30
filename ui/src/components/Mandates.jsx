@@ -18,7 +18,7 @@ import { Button, Chip, Label, Panel, PanelHead, ScreenHead, Empty, Mono } from "
 const STATUS_TONE = { active: "allow", revoked: "deny", expired: "mute", exhausted: "mute" };
 const POLICY_TONE = { deny: "deny", escalate: "wait", allow: "mute" };
 
-export default function Mandates({ locale, mandates, reload, onRevoke }) {
+export default function Mandates({ locale, mandates, selectedId, onSelect, reload, onRevoke }) {
   const T = (k) => t(locale, k);
   const [busy, setBusy] = useState(null);
 
@@ -33,7 +33,11 @@ export default function Mandates({ locale, mandates, reload, onRevoke }) {
       ) : (
         <div className="space-y-5">
           {mandates.map((m) => (
-            <Panel key={m.mandateId} tone={m.status === "active" ? undefined : "mute"}>
+            <Panel
+              key={m.mandateId}
+              tone={m.status === "active" ? undefined : "mute"}
+              className={m.mandateId === selectedId ? "ring-2 ring-stone-900/10" : ""}
+            >
               <PanelHead
                 title={m.humanReadable}
                 right={
@@ -94,11 +98,18 @@ export default function Mandates({ locale, mandates, reload, onRevoke }) {
 
               <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200/70 px-5 py-3">
                 <Mono value={m.mandateId} copy />
+                <div className="flex gap-2">
+                  {m.status === "active" && m.mandateId !== selectedId && (
+                    <Button variant="ghost" onClick={() => onSelect?.(m.mandateId)}>
+                      {T("mandates.use")}
+                    </Button>
+                  )}
                 {!m.revoked && (
                   <Button variant="refuse" onClick={() => onRevoke(m)} disabled={busy === m.mandateId}>
                     {T("mandates.revoke")}
                   </Button>
                 )}
+                </div>
               </footer>
             </Panel>
           ))}

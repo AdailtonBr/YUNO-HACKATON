@@ -16,6 +16,8 @@ import { seed, DEMO } from "../src/seed.js";
 import { buildStore } from "../../app2/src/store.js";
 import { STORES } from "../../app2/src/catalogs.js";
 import { Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal } from "../src/authority/models.js";
+import { mandateStatus } from "../src/authority/engine.js";
+import { runTick } from "../src/agent/watcher.js";
 
 let mongod, authority, storeServers = [], authorityUrl;
 
@@ -129,11 +131,20 @@ test("FLUXO FELIZ: o agente compara as duas lojas e compra a melhor que cabe", a
 test("FORA DO MANDATO: agente adversarial pega a mais barata e a Autoridade recusa", async () => {
   const mandateId = await shoeMandate();
   // `cheapest` ignora o mandato de proposito: e o agente tentando burlar.
-  const { chosen, result } = await shop(mandateId, { strategy: "cheapest" });
+  const out = await shop(mandateId, { strategy: "cheapest" });
+  const { chosen, result } = out;
 
-  assert.equal(chosen.productId, "TEN-002"); // a da China, R$92,50
+  // Ele pegou de fato a mais barata de todas, cabendo ou nao -- e nao a mais
+  // barata que cabe.  (Sem fixar o SKU: o catalogo e mock e muda; o que o teste
+  // guarda e o comportamento, nao o inventario.)
+  const cheapest = out.comparison.reduce((a, b) => (b.price < a.price ? b : a));
+  assert.equal(chosen.productId, cheapest.productId);
+  assert.equal(chosen.fits, false);
+
+  // E a Autoridade recusou, nomeando a regra que barrou.
   assert.equal(result.ok, false);
-  assert.match(result.reasonText, /ship_country/);
+  assert.equal(result.action, "reject");
+  assert.match(result.reasonText, /fails/);
 
   // Nada foi cobrado: o agente nao tem alavanca para virar um "nao" em "sim".
   const m = await Mandate.findById(mandateId).lean();
@@ -173,6 +184,88 @@ test("HUMAN-IN-THE-LOOP: modo aprovacao escala, humano aprova, agente conclui", 
 
   await post(`/approvals/${pend[0].approvalId}/approve`, {}, asHuman);
   assert.equal((await shop(mandateId)).result.ok, true);
+});
+
+test("O VIGIA: o preco cai na loja e a compra acontece sozinha", async () => {
+  // Teto abaixo de tudo o que esta a venda hoje: nada cabe, e o agente na
+  // conversa nao teria o que comprar.
+  const mandateId = await shoeMandate({
+    maxUses: 1,
+    constraints: [
+      { attr: "category", op: "eq", value: "calcado", on_missing: "deny", on_fail: "deny" },
+      { attr: "size", op: "eq", value: "40", on_missing: "deny", on_fail: "deny" },
+      { attr: "price", op: "lte", value: 7000, on_missing: "deny", on_fail: "deny" },
+    ],
+  });
+
+  const stores = [
+    { id: "store_a", url: storeServers[0].url },
+    { id: "store_b", url: storeServers[1].url },
+  ];
+  const deps = { stores, agentId: DEMO.agentId, agentSecret: DEMO.agentSecret };
+
+  // Primeiro tique: nada cabe, nada acontece.
+  assert.deepEqual(await runTick(deps), []);
+
+  // O operador da Loja B baixa o preco no painel.
+  const patched = await fetch(`${storeServers[1].url}/catalog/B-SNEAK-2`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ price: 6500 }),
+  });
+  assert.equal(patched.status, 200);
+
+  // Tique seguinte: o vigia acha, tenta, e a Autoridade aprova.
+  const done = await runTick(deps);
+  assert.equal(done.length, 1);
+  assert.equal(done[0].item.productId, "B-SNEAK-2");
+  assert.equal(done[0].item.price, 6500);
+  assert.equal(done[0].result.ok, true);
+
+  // E o mandato se ENCERRA sozinho: uma compra, e acabou.
+  const m = await Mandate.findById(mandateId).lean();
+  assert.equal(m.usedCount, 1);
+  assert.equal(mandateStatus(m), "exhausted");
+
+  // Esgotado, o vigia nao o toca mais.
+  assert.deepEqual(await runTick(deps), []);
+
+  // A compra do vigia e distinguivel da compra da conversa pelo prefixo.
+  const trail = await AuditLog.find({ mandateId, event: "purchase_decision" }).lean();
+  assert.ok(trail.some((e) => e.idempotencyKey?.startsWith("watch:")));
+
+  // Devolve o preco, para nao contaminar os outros testes (catalogo e modulo).
+  await fetch(`${storeServers[1].url}/catalog/B-SNEAK-2`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ price: 9400 }),
+  });
+});
+
+test("O VIGIA no modo aprovacao: escala em vez de comprar, e conclui depois do sim", async () => {
+  const mandateId = await shoeMandate({ mode: "aprovacao", maxUses: 1 });
+  const deps = {
+    stores: [
+      { id: "store_a", url: storeServers[0].url },
+      { id: "store_b", url: storeServers[1].url },
+    ],
+    agentId: DEMO.agentId,
+    agentSecret: DEMO.agentSecret,
+  };
+
+  const first = await runTick(deps);
+  assert.equal(first[0].result.ok, false);
+  assert.equal(first[0].result.action, "escalate");
+
+  // A pendencia esperava o humano -- que pode ter estado dormindo.
+  const pend = await fetch(`${authorityUrl}/approvals`, { headers: asHuman }).then((r) => r.json());
+  assert.equal(pend.length, 1);
+  await post(`/approvals/${pend[0].approvalId}/approve`, {}, asHuman);
+
+  // O tique seguinte reencontra a oportunidade, e agora a aprovacao casa.
+  // E isto que faz o modo aprovacao valer ao longo do tempo.
+  const second = await runTick(deps);
+  assert.equal(second[0].result.ok, true);
 });
 
 test("a loja ve a propria verificacao", async () => {

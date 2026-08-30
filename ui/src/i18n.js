@@ -14,7 +14,7 @@ const en = {
   outcome: { allowed: "allowed", denied: "denied", waiting: "awaiting you" },
   verdict: { ok: "ok", violated: "violated", missing: "not reported", missingAllowed: "skipped", invalidRule: "invalid rule", notEvaluated: "not evaluated" },
 
-  topbar: { uses: "purchases used", agent: "agent" },
+  topbar: { uses: "purchases used", agent: "agent", pick: "which mandate the agent acts under" },
 
   nav: {
     section: "Supervision",
@@ -64,6 +64,9 @@ const en = {
     startHint: "Tell the agent what you are looking for. It will check the catalogs, ask you what it still needs, and draft a mandate for you to authorize.",
     noMandate: "No active mandate yet — the agent will draft one for you to authorize.",
     working: "thinking…",
+    whileAway: "Bought while you were away",
+    whileAwayNote:
+      "Your mandate said to keep looking, so the agent did — and the Authority checked every rule before paying, exactly as it does when you are here.",
     proposalDrafted: "Proposal drafted — review and authorize it under Pending proposals.",
     goToProposals: "Review the proposal",
     nothingFits: "None of the catalog options fit this mandate.",
@@ -137,6 +140,7 @@ const en = {
     rules: "Rules",
     modeAutonomous: "autonomous",
     modeApproval: "approval per purchase",
+    use: "Use this one",
     revoke: "Revoke",
   },
 
@@ -183,7 +187,7 @@ const pt = {
   outcome: { allowed: "permitido", denied: "negado", waiting: "aguardando você" },
   verdict: { ok: "ok", violated: "violada", missing: "não informado", missingAllowed: "ignorada", invalidRule: "regra inválida", notEvaluated: "não avaliada" },
 
-  topbar: { uses: "compras usadas", agent: "agente" },
+  topbar: { uses: "compras usadas", agent: "agente", pick: "sob qual mandato o agente age" },
 
   nav: {
     section: "Supervisão",
@@ -233,6 +237,9 @@ const pt = {
     startHint: "Diga ao agente o que você procura. Ele consulta os catálogos, pergunta o que ainda falta, e rascunha um mandato para você autorizar.",
     noMandate: "Nenhum mandato ativo ainda — o agente vai rascunhar um para você autorizar.",
     working: "pensando…",
+    whileAway: "Comprado enquanto você não estava",
+    whileAwayNote:
+      "Seu mandato mandava continuar procurando, e o agente continuou — e a Autoridade conferiu cada regra antes de pagar, exatamente como faz quando você está aqui.",
     proposalDrafted: "Proposta rascunhada — revise e autorize em Propostas pendentes.",
     goToProposals: "Revisar a proposta",
     nothingFits: "Nenhuma opção dos catálogos cabe neste mandato.",
@@ -306,6 +313,7 @@ const pt = {
     rules: "Regras",
     modeAutonomous: "autônomo",
     modeApproval: "aprovação por compra",
+    use: "Usar este",
     revoke: "Revogar",
   },
 

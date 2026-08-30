@@ -40,8 +40,22 @@ export async function introspect(body, { merchantId }) {
     const seen = await Idempotency.findById(idemId).lean();
     if (seen) return seen.response;
   }
+  /**
+   * Memoriza só o que é DESFECHO.
+   *
+   * `escalate` não é desfecho — é "volte depois que o humano decidir".  Guardar
+   * a escalada faz a retentativa devolver a resposta velha, e a compra nunca
+   * consegue se concluir depois da aprovação: a pendência fica pendurada para
+   * sempre.  E não guardar é seguro, porque uma escalada não cobra nada — a
+   * idempotência existe para impedir cobrança dupla, não para congelar espera.
+   *
+   * (O caminho do chat escapava disso por acidente, gerando uma chave nova a
+   * cada tentativa.  O vigia, que deriva a chave de propósito para não cobrar
+   * duas vezes, foi quem revelou o problema.)
+   */
   const remember = async (response) => {
-    if (idemId) await Idempotency.create({ _id: idemId, response }).catch(() => {});
+    const terminal = response.valid || response.action === "reject";
+    if (idemId && terminal) await Idempotency.create({ _id: idemId, response }).catch(() => {});
     return response;
   };
 
