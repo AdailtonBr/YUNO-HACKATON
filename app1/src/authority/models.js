@@ -111,6 +111,9 @@ const proposalSchema = new Schema(
     // O julgamento do modelo sobre entrega, guardado para o humano conferir
     // ANTES de autorizar — é a rede de segurança de uma decisão que é dele.
     delivery: { type: Schema.Types.Mixed, default: null },
+    // O que o agente NÃO perguntou e assumiu pelo default seguro.  Vai visível
+    // na Trusted Surface: uma escolha que ninguém fez tem que aparecer.
+    assumed: { type: [String], default: [] },
     status: { type: String, enum: ["pending", "confirmed", "discarded"], default: "pending" },
     mandateId: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },

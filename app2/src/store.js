@@ -60,7 +60,12 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, setPrice, setA
     // Os atributos vêm do PRODUTO REAL, montados pela loja — nunca do agente.
     // É o que fecha o confused deputy: o agente não consegue mentir preço nem
     // categoria para caber no mandato.
-    const { productId: _pid, name: _n, price, currency, ...attributes } = product;
+    //
+    // `productId` entra entre os atributos de propósito: é o que permite um
+    // mandato dizer "compre EXATAMENTE este item", que é o limite mais apertado
+    // que existe.  Sem ele atestado aqui, uma regra sobre productId nunca casaria
+    // e recusaria toda compra — regra que não casa não protege, atrapalha.
+    const { name: _n, price, currency, ...attributes } = product;
     const purchase = { productId, price, currency, attributes: { ...attributes, price } };
 
     let result;

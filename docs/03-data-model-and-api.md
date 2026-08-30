@@ -8,6 +8,7 @@ A Autoridade não mantém um catálogo de atributos possíveis — o motor é ab
 
 | Atributo | Tipo | Convenção |
 |---|---|---|
+| `productId` | string | o id do produto **naquela loja**. Atestado junto dos demais para que o mandato possa dizer *"compre exatamente este item"* — a regra mais apertada que existe. Como o id é por loja, um mandato assim compra ali e em lugar nenhum mais. |
 | `price` | number | em **centavos** (evita float) |
 | `currency` | string | ISO-4217 (`BRL`) |
 | `category` | string | taxonomia fixa da demo: `calcado`, `higiene`, `software`, `evento`, `eletronico` |
@@ -15,6 +16,8 @@ A Autoridade não mantém um catálogo de atributos possíveis — o motor é ab
 | `size` | string | específico de calçado |
 | `color` | string | específico |
 | `brand` | string | específico |
+
+> **Nem todo atributo que serve de regra é atributo que valha perguntar.** `productId` fica fora do perfil que o agente usa para decidir o que perguntar — todo item tem o seu, então ele "varia" sempre e trivialmente, e perguntar seria absurdo. Mas é regra legítima, e o agente lê o id do catálogo em vez de pedi-lo ao humano. Ver `docs/09-agent.md`.
 
 > **Regra de ouro do casamento de nomes:** o Agente, ao montar constraints, **deriva os nomes de atributo do catálogo real das lojas candidatas** — nunca inventa. Assim `mandato.attr` sempre bate com `catalogo.attr` por construção. Atributos de nicho (não universais) são strings livres que loja e mandato combinam entre si; a Autoridade os transporta sem interpretar.
 

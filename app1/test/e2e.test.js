@@ -278,6 +278,32 @@ test("O VIGIA no modo aprovacao: escala em vez de comprar, e conclui depois do s
   assert.equal(second[0].result.ok, true);
 });
 
+test("a loja ATESTA o productId, entao 'compre exatamente este item' funciona", async () => {
+  const { items } = await fetch(`${authorityUrl}/agent/catalogs?q=`).then((r) => r.json());
+  const soap = items.find((i) => i.productId === "B-SOAP-1");
+  assert.ok(soap, "o sabonete existe no catalogo");
+
+  const mandateId = await shoeMandate({
+    maxUses: 1,
+    constraints: [{ attr: "productId", op: "eq", value: "B-SOAP-1", on_missing: "deny", on_fail: "deny" }],
+  });
+
+  const deps = {
+    stores: [
+      { id: "store_a", url: storeServers[0].url },
+      { id: "store_b", url: storeServers[1].url },
+    ],
+    agentId: DEMO.agentId,
+    agentSecret: DEMO.agentSecret,
+  };
+
+  // O vigia varre o catalogo inteiro; so o item nomeado pode passar.
+  const done = await runTick(deps);
+  assert.equal(done.length, 1);
+  assert.equal(done[0].item.productId, "B-SOAP-1");
+  assert.equal(done[0].result.ok, true);
+});
+
 test("a loja ve a propria verificacao", async () => {
   const mandateId = await shoeMandate();
   await shop(mandateId);

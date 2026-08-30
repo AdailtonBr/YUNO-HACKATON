@@ -64,18 +64,24 @@ export function attributeProfile(items) {
 
 const SYSTEM = `You are a purchasing agent acting for a human. You speak their language (mirror whatever language they write in).
 
-WHAT YOU DO
-1. When they ask for something, call search_catalog FIRST, with an EMPTY query.  Then pick the products that actually match and call it AGAIN with their productIds — the attribute profile only comes back for candidates you chose, and only there does "varies" mean anything.
-1a. Be strict about what counts as a candidate: only products that ARE the thing they asked for. A hand soap is not a toothpaste, and a trail shoe is not a running shoe. Sweeping in near-misses makes attributes look like they vary when they do not, and you end up asking about a difference the human never cared about.
-1b. Ask ONLY about attributes the profile says vary among those candidates. If every candidate is the same brand, brand is not a question — asking it wastes their time and makes you look like you did not look. The catalogs are small, so listing everything is cheap, and the store matches strings literally — it will not understand "tenis de corrida" or "running shoe". You are the one who maps what they want onto what is actually there. Only use a keyword to narrow down afterwards.
-2. Look at the attribute profile the tool returns. For any attribute where "varies" is true among the candidates, that difference is a decision only the human can make — ask them about it. Do not ask about attributes that do not vary; that wastes their time.
-3. Ask whether they want you to buy on your own within the limits, or to ask them before each payment. Never assume.
-3a. Call list_wallet, then ASK which payment method to pay with — out loud, in your reply, and wait for the answer. Even when they have only one: "pago com o cartão •••• 4242?" is a question, not an assumption. Never choose silently. None registered → tell them to add one on the Wallet screen; you cannot propose without one.
-3c. Decide whether the purchase needs delivery, from what they asked: a toothpaste ships, a cinema ticket or a software licence does not. If it ships, ASK which address and wait — resolve "o endereço cadastrado" to their single address if they have exactly one, ask which if several, add-one-first if they have none. If it does not ship, do not ask, and say why in deliveryNote.
-3d. Do not call propose_mandate until they have answered about the payment method and, when it ships, the address. Choosing for them is the one thing you must never do quietly — it is their money and their door.
-3b. Ask HOW LONG you should keep looking. That is the expiresAt: it is not "when the authorization expires", it is "how long I hunt for this". Nothing on offer today at their price is a normal answer — you keep watching until that date and buy the moment something fits.
-4. Once you know enough, call propose_mandate. Explain in one short sentence what you drafted and that they must authorize it.
-5. After they authorize it (a mandateId will appear in the conversation), call buy to attempt the purchase.
+BROWSING
+1. Call search_catalog with an EMPTY query to see everything. The store matches strings literally — it will not understand "tenis de corrida" or "running shoe". Mapping what they want onto what exists is your job.
+2. Pick the products that ARE the thing they asked for, and call search_catalog AGAIN with their productIds. Only then do you get the attribute profile, and only over candidates you chose does "varies" mean anything. Be strict: a hand soap is not a toothpaste, a trail shoe is not a running shoe. Sweeping in near-misses makes attributes look like they vary when they do not.
+
+THE FIVE QUESTIONS — ask every one before you propose
+3. Any attribute the profile says VARIES among the candidates. Only those: if every candidate is the same brand, brand is not a question, and asking it shows you did not look.
+4. Buy on my own, or ask me before each payment? Ask it every time, in these words or your own. It is the difference between an agent that spends while they sleep and one that waits — never assume it.
+5. Which payment method? Call list_wallet first. Even with only one: "pago com o cartão •••• 4242?" is a question, not an assumption. None registered → tell them to add one on the Wallet screen.
+6. Which delivery address — ONLY if the purchase ships. A toothpaste ships; a cinema ticket or a software licence does not. Resolve "o endereço cadastrado" to their single address if they have exactly one, ask which if several, add-one-first if none. If it does not ship, do not ask, and say why in deliveryNote.
+7. How long should I keep looking? That is expiresAt — not "when the authorization expires" but "how long I hunt for this". "Nothing at that price today" is a normal answer: you keep watching until that date and buy the moment something fits.
+
+Do not call propose_mandate until they have answered 4, 5, and 6-if-it-ships. Deciding those quietly is the one thing you must never do — it is their money, their door, and their choice about being asked.
+
+PROPOSING AND BUYING
+8. Call propose_mandate. Say in one short sentence what you drafted and that they must authorize it.
+9. To pin one exact item — "this soap, not any soap" — constrain productId with op "eq". Never constrain by name: a name is a label, not an identifier, and it differs between stores. It is the tightest rule there is, and right when only one product matches. It is per store: a productId names one listing at one merchant, so the mandate buys there and nowhere else. Never ask them for a productId; you read it from the catalog.
+10. Two different things with two different payment methods are TWO mandates. One mandate carries one payment method.
+11. After they authorize (a mandateId appears in the conversation), call buy.
 
 DRAFTING A PROPOSAL
 - If you asked about an attribute that varies and they answered only some of them, ask once more about the ones they skipped before proposing. Silence is not "I do not care" — a mandate without a size rule lets you buy any size, which is looser than they think they authorized. If they say they do not care, proceed without that rule.
@@ -151,9 +157,23 @@ const TOOLS = [
               required: ["attr", "op", "value"],
             },
           },
-          mode: { type: "string", enum: ["autonomo", "aprovacao"] },
+          // NÃO obrigatórios, de propósito.  Um enum obrigatório força o modelo
+          // a chutar quando não sabe — e foi assim que "compra sozinho" passou a
+          // ser escolhido calado.  Omitir é uma resposta honesta, e a omissão
+          // cai no lado seguro: mesma lógica de whitelist+deny do resto do
+          // sistema — esquecer bloqueia, não libera.
+          mode: {
+            type: "string",
+            enum: ["autonomo", "aprovacao"],
+            description:
+              "Only after the human told you which. If they have not, OMIT this field — omitting means they get asked before each purchase, which is the safe side to err on. Never infer it from their tone.",
+          },
           maxUses: { type: "integer", minimum: 1 },
-          expiresAt: { type: "string", description: "ISO date — how long to keep looking, e.g. 2026-09-30" },
+          expiresAt: {
+            type: "string",
+            description:
+              "ISO date — how long to keep looking. Only after they told you. If they have not, OMIT it and a short window is assumed.",
+          },
           paymentMethodId: { type: "string", description: "from list_wallet — which method pays for this" },
           requiresDelivery: {
             type: "boolean",
@@ -164,7 +184,7 @@ const TOOLS = [
           deliveryNote: { type: "string", description: "one short line explaining the delivery call, for the human to check" },
           rationale: { type: "string", description: "one line: why these rules, for the human to read" },
         },
-        required: ["constraints", "mode", "maxUses", "expiresAt", "rationale", "paymentMethodId", "requiresDelivery"],
+        required: ["constraints", "rationale", "paymentMethodId", "requiresDelivery"],
       },
     },
   },
@@ -443,10 +463,28 @@ async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates,
     // propunha sem rebuscar e `size`/`ship_country` eram recusados como falsos
     // desconhecidos.)
     const universe = lastCatalog.length ? lastCatalog : await searchCatalogs(deps.stores, "");
-    const known = new Set(Object.keys(attributeProfile(universe)));
-    const unknown = (args.constraints ?? []).map((c) => c.attr).filter((a) => a !== "price" && !known.has(a));
+    // Nem todo atributo que serve de REGRA é atributo que valha PERGUNTAR.
+    //
+    // `productId` fica fora do perfil (todo item tem o seu, então "varia"
+    // sempre e trivialmente — perguntar seria absurdo), mas é regra legítima e
+    // a mais apertada de todas: "compre exatamente este item".  `price` idem,
+    // por outro motivo: ele é sempre comparável, mesmo quando não varia.
+    const ALWAYS_CONSTRAINABLE = ["price", "productId"];
+    const known = new Set([...Object.keys(attributeProfile(universe)), ...ALWAYS_CONSTRAINABLE]);
+    const unknown = (args.constraints ?? []).map((c) => c.attr).filter((a) => !known.has(a));
     if (unknown.length) {
-      return { ok: false, error: "unknown_attributes", unknown, known: [...known] };
+      // A dica importa tanto quanto a recusa: sem ela o modelo tenta `name`,
+      // depois `product`, depois pergunta ao humano uma coisa que ele não tem
+      // como responder.  `name` é rótulo, não regra — o identificador é o id.
+      return {
+        ok: false,
+        error: "unknown_attributes",
+        unknown,
+        known: [...known],
+        hint: unknown.includes("name")
+          ? "To pin one exact item use productId (read it from the catalog), never name — a name is a label, not an identifier, and it differs between stores."
+          : "Use only the attribute names above, or productId to pin one exact item.",
+      };
     }
 
     // Sem meio de pagamento não há proposta: pagar com o quê é decisão do
@@ -460,11 +498,21 @@ async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates,
       return { ok: false, error: "missing_address", hint: "call list_wallet and ask the human which address" };
     }
 
+    // O que não foi perguntado cai no lado seguro, e isso vai visível na
+    // proposta: o humano vê "te pergunta antes de cada compra" e a janela
+    // curta, e sabe que ninguém decidiu isso por ele.
+    const SHORT_WINDOW_DAYS = 7;
+    const assumed = [];
+    if (!args.mode) assumed.push("mode");
+    if (!args.expiresAt) assumed.push("expiresAt");
+
     const draft = {
-      mode: args.mode,
+      mode: args.mode ?? "aprovacao",
       currency: "BRL",
-      maxUses: args.maxUses,
-      expiresAt: new Date(args.expiresAt).toISOString(),
+      maxUses: args.maxUses ?? 1,
+      expiresAt: new Date(
+        args.expiresAt ?? Date.now() + SHORT_WINDOW_DAYS * 24 * 60 * 60 * 1000
+      ).toISOString(),
       paymentMethodId: args.paymentMethodId,
       constraints: (args.constraints ?? []).map((c) => ({
         ...c,
@@ -502,6 +550,8 @@ async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates,
         draft,
         rationale: args.rationale,
         unconstrained,
+        // O que o humano NÃO respondeu, dito na cara — para ele pegar.
+        assumed,
         delivery: {
           required: !!args.requiresDelivery,
           addressId: args.requiresDelivery ? args.shippingAddressId ?? null : null,

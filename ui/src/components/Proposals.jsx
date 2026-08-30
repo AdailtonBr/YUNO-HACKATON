@@ -85,6 +85,18 @@ export default function Proposals({ locale, proposals, methods = [], addresses =
                 <p className="mt-2 font-mono text-[10.5px] text-stone-500">{T("proposals.renderedByServer")}</p>
               </div>
 
+              {/* O que o agente NÃO perguntou.  Ele caiu no default seguro, mas
+                  "seguro" não é "combinado" — você não escolheu isso. */}
+              {(p.assumed ?? []).length > 0 && (
+                <div className="border-b border-amber-200/70 bg-amber-50/60 px-5 py-3">
+                  <Label>{T("proposals.assumed")}</Label>
+                  <p className="mt-1 font-sans text-[13px] leading-relaxed text-amber-900">
+                    {T("proposals.assumedNote")}{" "}
+                    {p.assumed.map((a) => T(`proposals.assumed_${a}`)).join(" · ")}
+                  </p>
+                </div>
+              )}
+
               {/* O que ficou EM ABERTO.  Uma regra ausente não aparece numa
                   tabela de regras — e é justamente a ausência que alarga o
                   mandato sem o humano perceber.  Por isso vem antes da tabela. */}
@@ -107,7 +119,21 @@ export default function Proposals({ locale, proposals, methods = [], addresses =
 
               {/* Como paga e para onde vai: o julgamento de entrega é do modelo,
                   então aparece aqui para o humano conferir ANTES de autorizar. */}
-              <div className="grid gap-4 border-b border-amber-200/70 bg-white/70 px-5 py-3 sm:grid-cols-2">
+              <div className="grid gap-4 border-b border-amber-200/70 bg-white/70 px-5 py-3 sm:grid-cols-3">
+                {/* O MODO fica aqui, não escondido entre as métricas pequenas:
+                    "compra dormindo" e "me pergunta antes" é a diferença mais
+                    consequente da proposta, e a que o agente mais esquece de
+                    perguntar. Se ele decidiu sozinho, é aqui que você pega. */}
+                <div>
+                  <Label>{T("proposals.mode")}</Label>
+                  <p
+                    className={`mt-0.5 font-mono text-[13px] ${
+                      p.draft.mode === "aprovacao" ? "text-emerald-800" : "text-amber-900"
+                    }`}
+                  >
+                    {T(p.draft.mode === "aprovacao" ? "proposals.modeApproval" : "proposals.modeAutonomous")}
+                  </p>
+                </div>
                 <div>
                   <Label>{T("proposals.paysWith")}</Label>
                   <p className="mt-0.5 font-mono text-[13px] text-stone-800">
@@ -167,7 +193,6 @@ export default function Proposals({ locale, proposals, methods = [], addresses =
 
               <div className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-stone-200/70 px-5 py-3 sm:grid-cols-4">
                 {[
-                  [T("proposals.mode"), T(p.draft.mode === "aprovacao" ? "proposals.modeApproval" : "proposals.modeAutonomous")],
                   [T("proposals.uses"), String(p.draft.maxUses ?? 1)],
                   [T("proposals.validUntil"), new Date(p.draft.expiresAt).toISOString().slice(0, 10)],
                   [T("proposals.currency"), p.draft.currency],

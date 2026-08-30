@@ -289,6 +289,37 @@ test("aprovacao de outra loja nao vale", () => {
   assert.equal(evaluate(m, p, ctx(m, p, { approval: a })).action, "escalate");
 });
 
+/* ------------------- "compre exatamente este item" ----------------- */
+
+test("productId como regra: o item certo passa", () => {
+  const m = mandate({
+    constraints: [{ attr: "productId", op: "eq", value: "TEN-001", on_missing: "deny", on_fail: "deny" }],
+  });
+  const p = purchase({ attributes: { productId: "TEN-001", price: 9800 } });
+  assert.equal(evaluate(m, p, ctx(m, p)).valid, true);
+});
+
+test("productId como regra: OUTRO item e recusado, mesmo cabendo no resto", () => {
+  const m = mandate({
+    constraints: [{ attr: "productId", op: "eq", value: "HIG-001", on_missing: "deny", on_fail: "deny" }],
+  });
+  // Mesmo preco, mesma categoria: so o item e outro.
+  const p = purchase({ attributes: { productId: "TEN-001", price: 9800, category: "calcado" } });
+  const r = evaluate(m, p, ctx(m, p));
+  assert.equal(r.action, "reject");
+  assert.equal(r.reason.params.attr, "productId");
+});
+
+test("se a loja NAO atestasse o productId, a regra recusaria tudo", () => {
+  // E o motivo de a loja precisar mandar o campo: sem ele, a regra vira
+  // `attribute_missing` e o mandato nunca compra nada.
+  const m = mandate({
+    constraints: [{ attr: "productId", op: "eq", value: "TEN-001", on_missing: "deny", on_fail: "deny" }],
+  });
+  const p = purchase({ attributes: { price: 9800 } }); // sem productId
+  assert.equal(evaluate(m, p, ctx(m, p)).reason.code, "attribute_missing");
+});
+
 /* -------------------- universalidade do motor ---------------------- */
 
 test("mesmo motor, dados diferentes: assinatura de software ignora pais", () => {
