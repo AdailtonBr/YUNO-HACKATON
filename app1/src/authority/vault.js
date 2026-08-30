@@ -21,15 +21,84 @@ const vault = new Map();
  * rótulo para o humano reconhecer o método — o número cru nunca é persistido
  * pela Autoridade nem visto pelo agente.
  */
+/**
+ * DOIS identificadores, de propósito.
+ *
+ *  - `paymentMethodRef` é o ponteiro que a Autoridade usa para cobrar.  Ele
+ *    vive no mandato e **nunca sai daqui**.
+ *  - `methodId` é um id opaco de exibição, e é o único que o agente e a UI
+ *    chegam a ver.
+ *
+ * O agente aprende que existe um método chamado `•••• 4242`; ele não aprende o
+ * ponteiro nem o cartão.  É o que mantém literal a frase do `docs/05`: *não há
+ * ponteiro solto para roubar*.
+ */
 export function tokenize({ rail, instrument, humanId }) {
   if (!["card", "pix"].includes(rail)) throw new Error("unsupported_rail");
   const ref = opaqueId(rail === "card" ? "pm_card" : "pm_pix");
+  const methodId = opaqueId("pm");
   const label =
     rail === "card" ? `•••• ${String(instrument?.number ?? "").slice(-4)}` : instrument?.key ?? "pix";
-  // Guardamos o cru aqui dentro e devolvemos só a ref e um rótulo curto.  O
-  // rótulo existe para o humano reconhecer o método; não reconstrói o instrumento.
-  vault.set(ref, { rail, instrument, humanId, label, createdAt: new Date() });
-  return { paymentMethodRef: ref, rail, label };
+  // O cru entra aqui e não sai.  O rótulo existe para o humano reconhecer o
+  // método; ele não reconstrói o instrumento.
+  vault.set(ref, { rail, instrument, humanId, label, methodId, createdAt: new Date() });
+  return { paymentMethodRef: ref, methodId, rail, label };
+}
+
+/** O que a carteira mostra: rótulos, nunca números, nunca a ref. */
+export function listMethods(humanId) {
+  return [...vault.values()]
+    .filter((v) => v.humanId === humanId)
+    .map((v) => ({ methodId: v.methodId, rail: v.rail, label: v.label, createdAt: v.createdAt }));
+}
+
+/**
+ * A tradução `methodId` → `paymentMethodRef`, que só acontece DENTRO da
+ * Autoridade, no momento em que o humano autoriza.  Confere o dono: um id de
+ * outra pessoa não resolve.
+ */
+export function resolveMethod(humanId, methodId) {
+  for (const [ref, v] of vault.entries()) {
+    if (v.methodId === methodId && v.humanId === humanId) return { paymentMethodRef: ref, rail: v.rail, label: v.label };
+  }
+  return null;
+}
+
+export function forgetMethod(humanId, methodId) {
+  for (const [ref, v] of vault.entries()) {
+    if (v.methodId === methodId && v.humanId === humanId) return vault.delete(ref);
+  }
+  return false;
+}
+
+/* ------------------------- endereços de entrega -------------------------- */
+/*
+ * Mesma forma, e pelo mesmo motivo: o agente sabe que existe um endereço
+ * chamado "Casa"; ele não sabe onde é "Casa".
+ */
+
+const addresses = new Map(); // addressId -> { humanId, label, address }
+
+export function addAddress({ humanId, label, address }) {
+  const addressId = opaqueId("adr");
+  addresses.set(addressId, { humanId, label, address, createdAt: new Date() });
+  return { addressId, label };
+}
+
+export function listAddresses(humanId) {
+  return [...addresses.entries()]
+    .filter(([, a]) => a.humanId === humanId)
+    .map(([addressId, a]) => ({ addressId, label: a.label, createdAt: a.createdAt }));
+}
+
+export function resolveAddress(humanId, addressId) {
+  const a = addresses.get(addressId);
+  return a && a.humanId === humanId ? { addressId, label: a.label } : null;
+}
+
+export function forgetAddress(humanId, addressId) {
+  const a = addresses.get(addressId);
+  return a && a.humanId === humanId ? addresses.delete(addressId) : false;
 }
 
 

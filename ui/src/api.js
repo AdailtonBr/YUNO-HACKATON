@@ -38,8 +38,15 @@ export const api = {
   reject: (id, locale) => req("POST", `/api/approvals/${id}/reject`, { locale }),
   audit: (mandateId, locale) =>
     req("GET", `/api/audit${mandateId ? `?mandateId=${mandateId}` : ""}`, { locale }),
-  tokenize: (rail, instrument, locale) =>
-    req("POST", "/api/vault/tokenize", { body: { rail, instrument }, locale }),
+  // Carteira: o cru entra, so rotulo e id voltam.
+  methods: (locale) => req("GET", "/api/wallet/methods", { locale }),
+  addMethod: (rail, instrument, locale) =>
+    req("POST", "/api/wallet/methods", { body: { rail, instrument }, locale }),
+  removeMethod: (id, locale) => req("DELETE", `/api/wallet/methods/${id}`, { locale }),
+  addresses: (locale) => req("GET", "/api/wallet/addresses", { locale }),
+  addAddress: (label, address, locale) =>
+    req("POST", "/api/wallet/addresses", { body: { label, address }, locale }),
+  removeAddress: (id, locale) => req("DELETE", `/api/wallet/addresses/${id}`, { locale }),
 
   // Disputa: "eu nunca autorizei isso" -> o trilho responde.
   dispute: (auditId, reason, locale) =>

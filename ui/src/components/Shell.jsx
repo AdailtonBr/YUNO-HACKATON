@@ -14,7 +14,7 @@ import { Chip, Label, Meter, TONE } from "./ui.jsx";
 
 // As quatro telas da Fase 3 do plano (propostas, aprovacoes, mandatos,
 // auditoria), mais a superficie do agente, que e a porta de entrada.
-const NAV = ["chat", "proposals", "approvals", "mandates", "audit"];
+const NAV = ["chat", "proposals", "approvals", "mandates", "wallet", "audit"];
 
 export default function Shell({
   locale,

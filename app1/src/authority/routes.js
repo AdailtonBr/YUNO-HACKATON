@@ -14,7 +14,10 @@ import { mandateStatus } from "./engine.js";
 import { introspect } from "./introspect.js";
 import { resolveDispute } from "./dispute.js";
 import { opaqueId } from "./ticket.js";
-import { tokenize } from "./vault.js";
+import {
+  tokenize, listMethods, resolveMethod, forgetMethod,
+  addAddress, listAddresses, resolveAddress, forgetAddress,
+} from "./vault.js";
 import { humanReadable, reasonText } from "../shared/messages.js";
 
 const sha256 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
@@ -66,10 +69,20 @@ export function buildRouter() {
   /* --- Trusted Surface: o humano cria o mandato -------------------- */
 
   r.post("/mandates", requireHuman, async (req, res) => {
-    const { agentId, mode, constraints, currency, paymentMethodRef, maxUses, expiresAt, proposalId } = req.body ?? {};
-    if (!agentId || !mode || !currency || !paymentMethodRef || !expiresAt) {
+    const { agentId, mode, constraints, currency, maxUses, expiresAt, proposalId } = req.body ?? {};
+    const { paymentMethodId, shippingAddressId } = req.body ?? {};
+    if (!agentId || !mode || !currency || !expiresAt) {
       return res.status(400).json({ error: "missing_fields" });
     }
+
+    // A tradução id -> ref acontece AQUI, dentro da Autoridade, com o humano
+    // autenticado.  Nem a UI nem o agente jamais tocam o `paymentMethodRef`.
+    const method = paymentMethodId ? resolveMethod(req.humanId, paymentMethodId) : null;
+    if (!method) return res.status(400).json({ error: "unknown_payment_method" });
+
+    // Endereço é opcional: nem tudo se entrega (ingresso, assinatura).
+    const address = shippingAddressId ? resolveAddress(req.humanId, shippingAddressId) : null;
+    if (shippingAddressId && !address) return res.status(400).json({ error: "unknown_address" });
     const agent = await Agent.findById(agentId).lean();
     // O humano só pode dar mandato ao PRÓPRIO agente.
     if (!agent || agent.humanId !== req.humanId) return res.status(403).json({ error: "not_your_agent" });
@@ -91,7 +104,8 @@ export function buildRouter() {
       humanId: req.humanId, // da sessão
       agentId,
       ...draft,
-      paymentMethodRef,
+      paymentMethodRef: method.paymentMethodRef,
+      shippingAddressId: address?.addressId ?? null,
       // Derivado do MESMO JSON que será verificado — nunca escrito em paralelo.
       humanReadable: humanReadable(draft, locale(req)),
     });
@@ -155,6 +169,7 @@ export function buildRouter() {
     currency: m.currency,
     expiresAt: m.expiresAt,
     constraints: m.constraints,
+    shippingAddressId: m.shippingAddressId ?? null,
     // paymentMethodRef NUNCA sai daqui.
   });
 
@@ -172,7 +187,7 @@ export function buildRouter() {
   /* --- Propostas: o agente rascunha, o humano confirma ------------- */
 
   r.post("/proposals", requireAgent, async (req, res) => {
-    const { draft, rationale, unconstrained } = req.body ?? {};
+    const { draft, rationale, unconstrained, delivery } = req.body ?? {};
     if (!draft) return res.status(400).json({ error: "missing_draft" });
     const p = await Proposal.create({
       _id: opaqueId("prp"),
@@ -181,6 +196,7 @@ export function buildRouter() {
       draft,
       rationale,
       unconstrained: unconstrained ?? [],
+      delivery: delivery ?? null,
     });
     // O agente depositou um rascunho.  Isto NÃO é um mandato.
     res.status(201).json({ proposalId: p._id });
@@ -197,6 +213,7 @@ export function buildRouter() {
         draft: p.draft,
         rationale: p.rationale,
         unconstrained: p.unconstrained ?? [],
+        delivery: p.delivery ?? null,
         createdAt: p.createdAt,
         // A frase vem do MESMO renderizador que grava o mandato: o humano revisa
         // exatamente o que será verificado, não uma descrição paralela.
@@ -342,13 +359,43 @@ export function buildRouter() {
 
   /* --- Cofre: tokenização (o cru entra aqui e não sai) -------------- */
 
-  r.post("/vault/tokenize", requireHuman, (req, res) => {
+  /* --- Carteira: meios de pagamento e endereços --------------------- */
+  /*
+   * O instrumento cru entra por aqui, com o humano presente, e não volta.  O
+   * que sai é `methodId` + rótulo; o `paymentMethodRef` fica dentro do cofre.
+   */
+  r.post("/wallet/methods", requireHuman, (req, res) => {
     try {
-      res.json(tokenize({ ...(req.body ?? {}), humanId: req.humanId }));
+      const { rail, instrument } = req.body ?? {};
+      const { methodId, label } = tokenize({ rail, instrument, humanId: req.humanId });
+      res.status(201).json({ methodId, rail, label }); // sem a ref, de propósito
     } catch {
       res.status(400).json({ error: "unsupported_rail" });
     }
   });
+
+  r.get("/wallet/methods", requireHuman, (req, res) => res.json(listMethods(req.humanId)));
+
+  r.delete("/wallet/methods/:id", requireHuman, (req, res) =>
+    forgetMethod(req.humanId, req.params.id)
+      ? res.json({ ok: true })
+      : res.status(404).json({ error: "unknown_method" })
+  );
+
+  r.post("/wallet/addresses", requireHuman, (req, res) => {
+    const { label, address } = req.body ?? {};
+    if (!label?.trim() || !address?.trim()) return res.status(400).json({ error: "missing_fields" });
+    res.status(201).json(addAddress({ humanId: req.humanId, label: label.trim(), address: address.trim() }));
+  });
+
+  // Devolve rótulos.  A rua fica no cofre, como o número do cartão.
+  r.get("/wallet/addresses", requireHuman, (req, res) => res.json(listAddresses(req.humanId)));
+
+  r.delete("/wallet/addresses/:id", requireHuman, (req, res) =>
+    forgetAddress(req.humanId, req.params.id)
+      ? res.json({ ok: true })
+      : res.status(404).json({ error: "unknown_address" })
+  );
 
 
   return r;

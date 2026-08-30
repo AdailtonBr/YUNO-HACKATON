@@ -27,6 +27,7 @@ const unregisteredStore = () => ({ id: "store_fake", url: process.env.STORE_FAKE
 const agentCredential = () => ({
   id: process.env.AGENT_ID ?? "agent_michael",
   secret: process.env.AGENT_SECRET ?? "demo-agent-secret-michael",
+  humanId: process.env.HUMAN_ID ?? "user_michael",
 });
 
 /**
@@ -119,6 +120,9 @@ export function buildAgentRouter() {
           agentId: agent.id,
           agentSecret: agent.secret,
           authorityUrl: authorityUrl(),
+          // De quem é a carteira que o agente consulta.  Vem do cadastro do
+          // agente, não do corpo da requisição: o agente serve a UMA pessoa.
+          humanId: agent.humanId,
         },
       });
       conversations.set(conversationId, out.history.slice(-24)); // janela curta

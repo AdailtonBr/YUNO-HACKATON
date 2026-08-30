@@ -65,9 +65,13 @@ export function attributeProfile(items) {
 const SYSTEM = `You are a purchasing agent acting for a human. You speak their language (mirror whatever language they write in).
 
 WHAT YOU DO
-1. When they ask for something, call search_catalog FIRST, with an EMPTY query. The catalogs are small, so listing everything is cheap, and the store matches strings literally — it will not understand "tenis de corrida" or "running shoe". You are the one who maps what they want onto what is actually there. Only use a keyword to narrow down afterwards.
+1. When they ask for something, call search_catalog FIRST, with an EMPTY query.  Then pick the products that actually match and call it AGAIN with their productIds — the attribute profile only comes back for candidates you chose, and only there does "varies" mean anything.
+1b. Ask ONLY about attributes the profile says vary among those candidates. If every candidate is the same brand, brand is not a question — asking it wastes their time and makes you look like you did not look. The catalogs are small, so listing everything is cheap, and the store matches strings literally — it will not understand "tenis de corrida" or "running shoe". You are the one who maps what they want onto what is actually there. Only use a keyword to narrow down afterwards.
 2. Look at the attribute profile the tool returns. For any attribute where "varies" is true among the candidates, that difference is a decision only the human can make — ask them about it. Do not ask about attributes that do not vary; that wastes their time.
 3. Ask whether they want you to buy on your own within the limits, or to ask them before each payment. Never assume.
+3a. Call list_wallet, then ASK which payment method to pay with — out loud, in your reply, and wait for the answer. Even when they have only one: "pago com o cartão •••• 4242?" is a question, not an assumption. Never choose silently. None registered → tell them to add one on the Wallet screen; you cannot propose without one.
+3c. Decide whether the purchase needs delivery, from what they asked: a toothpaste ships, a cinema ticket or a software licence does not. If it ships, ASK which address and wait — resolve "o endereço cadastrado" to their single address if they have exactly one, ask which if several, add-one-first if they have none. If it does not ship, do not ask, and say why in deliveryNote.
+3d. Do not call propose_mandate until they have answered about the payment method and, when it ships, the address. Choosing for them is the one thing you must never do quietly — it is their money and their door.
 3b. Ask HOW LONG you should keep looking. That is the expiresAt: it is not "when the authorization expires", it is "how long I hunt for this". Nothing on offer today at their price is a normal answer — you keep watching until that date and buy the moment something fits.
 4. Once you know enough, call propose_mandate. Explain in one short sentence what you drafted and that they must authorize it.
 5. After they authorize it (a mandateId will appear in the conversation), call buy to attempt the purchase.
@@ -91,13 +95,18 @@ const TOOLS = [
     function: {
       name: "search_catalog",
       description:
-        "Search the registered stores. Returns matching products in the common vocabulary plus an attribute profile saying which attributes exist and which VARY across the candidates.",
+        "Browse the stores. Call it with an empty query to see everything, then call it AGAIN with productIds of the products that match what the human asked — only then do you get the attribute profile telling you what actually varies among those candidates.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "keyword, e.g. 'runner' or 'shoe'. Empty string lists everything." },
+          query: { type: "string", description: "keyword. Empty string lists everything." },
+          productIds: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "The candidates you picked. With these, the result is those products plus the attribute profile over exactly them.",
+          },
         },
-        required: ["query"],
       },
     },
   },
@@ -144,11 +153,27 @@ const TOOLS = [
           mode: { type: "string", enum: ["autonomo", "aprovacao"] },
           maxUses: { type: "integer", minimum: 1 },
           expiresAt: { type: "string", description: "ISO date — how long to keep looking, e.g. 2026-09-30" },
-          rail: { type: "string", enum: ["card", "pix"] },
+          paymentMethodId: { type: "string", description: "from list_wallet — which method pays for this" },
+          requiresDelivery: {
+            type: "boolean",
+            description:
+              "Does this purchase need shipping? A toothpaste does; a cinema ticket or a software licence does not. Your judgement, from what they asked.",
+          },
+          shippingAddressId: { type: "string", description: "from list_wallet — required when requiresDelivery is true" },
+          deliveryNote: { type: "string", description: "one short line explaining the delivery call, for the human to check" },
           rationale: { type: "string", description: "one line: why these rules, for the human to read" },
         },
-        required: ["constraints", "mode", "maxUses", "expiresAt", "rationale"],
+        required: ["constraints", "mode", "maxUses", "expiresAt", "rationale", "paymentMethodId", "requiresDelivery"],
       },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_wallet",
+      description:
+        "The human's registered payment methods and delivery addresses. You get labels and ids only — never a card number, never a street. Call it before proposing.",
+      parameters: { type: "object", properties: {} },
     },
   },
   {
@@ -227,7 +252,9 @@ export async function runTurn({ history, message, mandate, deps }) {
   ];
 
   const events = [];
-  let lastCatalog = [];
+  let lastCatalog = [];   // tudo o que a loja expôs — âncora dos NOMES de atributo
+  let lastCandidates = []; // o que o modelo escolheu — âncora do que VARIA
+  const seen = { wallet: false }; // o que ele de fato consultou neste turno
 
   // No máximo 6 voltas: o suficiente para buscar, propor e comprar, e curto o
   // bastante para um loop maluco não virar uma conta de API.
@@ -247,9 +274,13 @@ export async function runTurn({ history, message, mandate, deps }) {
       try {
         args = JSON.parse(call.function.arguments || "{}");
       } catch {}
-      const result = await runTool(call.function.name, args, { deps, mandate, lastCatalog, events });
-      if (call.function.name === "search_catalog") lastCatalog = result.__items ?? [];
+      const result = await runTool(call.function.name, args, { deps, mandate, lastCatalog, lastCandidates, events, seen });
+      if (call.function.name === "search_catalog") {
+        lastCatalog = result.__items ?? lastCatalog;
+        if (result.__candidates) lastCandidates = result.__candidates;
+      }
       delete result.__items;
+      delete result.__candidates;
       messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
     }
   }
@@ -263,7 +294,7 @@ const findStore = (stores, ref) => {
   return stores.find((st) => st.id.toLowerCase() === want);
 };
 
-async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
+async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates, events, seen }) {
   if (name === "search_catalog") {
     let items = await searchCatalogs(deps.stores, args.query ?? "");
 
@@ -277,14 +308,34 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
       fellBack = true;
     }
 
+    const picked = (args.productIds ?? []).filter(Boolean);
+    if (picked.length) {
+      const wanted = new Set(picked);
+      const candidates = items.filter((i) => wanted.has(i.productId));
+      return {
+        __items: items,
+        __candidates: candidates,
+        count: candidates.length,
+        items: candidates.map(({ storeUrl, ...i }) => withDisplay(i)),
+        // O perfil é sobre EXATAMENTE os candidatos escolhidos.
+        attribute_profile: attributeProfile(candidates),
+      };
+    }
+
+    // Sem candidatos escolhidos, NÃO mandamos perfil.
+    //
+    // Um perfil sobre o catálogo inteiro diz que marca, tamanho e cor "variam"
+    // — sempre, trivialmente, porque tênis e pasta de dente diferem em tudo.
+    // Foi assim que o agente anunciou "duas marcas, Sorriso e Sorriso": ele foi
+    // informado de que `brand` variava e obedeceu.  Omitir é o que garante;
+    // deixar disponível é convidar o modelo a papagaiar um número sem sentido.
     return {
       __items: items,
       count: items.length,
-      note: fellBack
-        ? `No product matched "${args.query}" literally. Returning the full catalog — match it to what the human asked yourself.`
-        : undefined,
+      note:
+        (fellBack ? `Nothing matched "${args.query}" literally, so this is the whole catalog. ` : "") +
+        "No attribute profile yet: pick the products that match what the human asked and call search_catalog again with their productIds. Only over those candidates does \"varies\" mean anything.",
       items: items.map(({ storeUrl, ...i }) => withDisplay(i)),
-      attribute_profile: attributeProfile(items),
     };
   }
 
@@ -300,6 +351,16 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
     if (!item) return { ok: false, error: "unknown_product" };
     const { storeUrl, ...clean } = item;
     return { ok: true, product: withDisplay(clean) };
+  }
+
+  if (name === "list_wallet") {
+    seen.wallet = true;
+    const [methods, addresses] = await Promise.all([
+      fetch(`${deps.authorityUrl}/wallet/methods`, { headers: { "x-human-id": deps.humanId } }).then((r) => r.json()),
+      fetch(`${deps.authorityUrl}/wallet/addresses`, { headers: { "x-human-id": deps.humanId } }).then((r) => r.json()),
+    ]);
+    // Rótulos e ids.  Nada aqui reconstrói um cartão nem uma rua.
+    return { payment_methods: methods, addresses };
   }
 
   if (name === "propose_mandate") {
@@ -319,12 +380,35 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
       return { ok: false, error: "unknown_attributes", unknown, known: [...known] };
     }
 
+    // Sem meio de pagamento não há proposta: pagar com o quê é decisão do
+    // humano, e ele já cadastrou as opções.  Escolher por ele seria o agente
+    // decidindo algo que não é dele.
+    if (!args.paymentMethodId) {
+      return { ok: false, error: "missing_payment_method", hint: "call list_wallet and ask the human which one" };
+    }
+
+    // Não dá para escolher entre opções que nunca se olhou.  A garantia é
+    // fraca — ela força o agente a consultar, não a perguntar — mas é a que
+    // cabe em código: "ele perguntou?" não é algo que a tool consiga ver.
+    // Quem fecha o resto é a Trusted Surface, que mostra "Paga com" e
+    // "Entrega" antes do sim, para o humano pegar uma escolha que não fez.
+    if (!seen.wallet) {
+      return {
+        ok: false,
+        error: "wallet_not_consulted",
+        hint: "call list_wallet first, then ask the human which method and which address",
+      };
+    }
+    if (args.requiresDelivery && !args.shippingAddressId) {
+      return { ok: false, error: "missing_address", hint: "call list_wallet and ask the human which address" };
+    }
+
     const draft = {
       mode: args.mode,
       currency: "BRL",
       maxUses: args.maxUses,
       expiresAt: new Date(args.expiresAt).toISOString(),
-      rail: args.rail ?? "card",
+      paymentMethodId: args.paymentMethodId,
       constraints: (args.constraints ?? []).map((c) => ({
         ...c,
         on_missing: c.on_missing ?? "deny",
@@ -340,7 +424,10 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
     // autoriza qualquer tamanho.  O modelo deveria perguntar de novo, mas
     // "deveria" é prompt.  Isto é o que garante que, se ele não perguntar, a
     // Trusted Surface mostra ao humano o que NÃO está limitado antes do sim.
-    const profile = attributeProfile(universe);
+    // Sobre os CANDIDATOS, não sobre o catálogo: num mandato de pasta de dente,
+    // "size — no catálogo: 40, 42" seria ruído sobre um atributo que nem existe
+    // para o produto em questão.
+    const profile = attributeProfile(lastCandidates.length ? lastCandidates : universe);
     const covered = new Set(draft.constraints.map((c) => c.attr));
     const unconstrained = Object.entries(profile)
       .filter(([attr, p]) => p.varies && !covered.has(attr))
@@ -354,7 +441,16 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
         "x-agent-id": deps.agentId,
         "x-agent-secret": deps.agentSecret,
       },
-      body: JSON.stringify({ draft, rationale: args.rationale, unconstrained }),
+      body: JSON.stringify({
+        draft,
+        rationale: args.rationale,
+        unconstrained,
+        delivery: {
+          required: !!args.requiresDelivery,
+          addressId: args.requiresDelivery ? args.shippingAddressId ?? null : null,
+          note: args.deliveryNote ?? null,
+        },
+      }),
     });
     const body = await res.json();
     if (!res.ok) return { ok: false, error: body.error ?? "proposal_failed" };

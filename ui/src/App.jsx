@@ -8,6 +8,7 @@ import Proposals from "./components/Proposals.jsx";
 import ApprovalQueue from "./components/ApprovalQueue.jsx";
 import Mandates from "./components/Mandates.jsx";
 import AuditTrail from "./components/AuditTrail.jsx";
+import Wallet from "./components/Wallet.jsx";
 
 export default function App() {
   const [locale, setLocale] = useState("en"); // inglês é o idioma de entrega
@@ -16,21 +17,27 @@ export default function App() {
   const [proposals, setProposals] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [trail, setTrail] = useState([]);
+  const [methods, setMethods] = useState([]);
+  const [addresses, setAddresses] = useState([]);
   const [revoking, setRevoking] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [err, setErr] = useState(null);
 
   const reload = useCallback(async () => {
     try {
-      const [m, pr, a, tr] = await Promise.all([
+      const [m, pr, a, tr, pm, ad] = await Promise.all([
         api.mandates(locale),
         api.proposals(locale),
         api.approvals(locale),
         api.audit(null, locale),
+        api.methods(locale),
+        api.addresses(locale),
       ]);
       setMandates(m);
       setProposals(pr);
       setApprovals(a);
+      setMethods(pm);
+      setAddresses(ad);
       setTrail(tr.slice().reverse()); // mais recente primeiro
       setErr(null);
     } catch {
@@ -98,7 +105,18 @@ export default function App() {
             goToProposals={() => setTab("proposals")}
           />
         )}
-        {tab === "proposals" && <Proposals locale={locale} proposals={proposals} reload={reload} />}
+        {tab === "proposals" && (
+          <Proposals
+            locale={locale}
+            proposals={proposals}
+            methods={methods}
+            addresses={addresses}
+            reload={reload}
+          />
+        )}
+        {tab === "wallet" && (
+          <Wallet locale={locale} methods={methods} addresses={addresses} reload={reload} />
+        )}
         {tab === "approvals" && <ApprovalQueue locale={locale} approvals={approvals} reload={reload} />}
         {tab === "mandates" && (
           <Mandates

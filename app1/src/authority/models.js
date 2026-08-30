@@ -33,6 +33,9 @@ const mandateSchema = new Schema(
     constraints: { type: [constraintSchema], default: [] },
     currency: { type: String, required: true },
     paymentMethodRef: { type: String, required: true }, // ponteiro opaco, nunca o instrumento
+    // Para onde entregar, quando o produto se entrega.  Guardamos o ID: a rua
+    // vive no cofre, como o número do cartão.  `null` = nada a entregar.
+    shippingAddressId: { type: String, default: null },
     // Obrigatório: mandato sem limite de usos é cheque em aberto.  Esquecer bloqueia (1), não libera.
     maxUses: { type: Number, required: true, default: 1, min: 1 },
     usedCount: { type: Number, required: true, default: 0 },
@@ -105,6 +108,9 @@ const proposalSchema = new Schema(
     // Atributos que VARIAM no catálogo e não têm regra: o humano vê o que está
     // deixando em aberto antes de autorizar.
     unconstrained: { type: Schema.Types.Mixed, default: [] },
+    // O julgamento do modelo sobre entrega, guardado para o humano conferir
+    // ANTES de autorizar — é a rede de segurança de uma decisão que é dele.
+    delivery: { type: Schema.Types.Mixed, default: null },
     status: { type: String, enum: ["pending", "confirmed", "discarded"], default: "pending" },
     mandateId: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },

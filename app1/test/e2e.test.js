@@ -67,6 +67,16 @@ const asHuman = { "content-type": "application/json", "x-human-id": DEMO.humanId
 const post = (path, body, headers = { "content-type": "application/json" }) =>
   fetch(`${authorityUrl}${path}`, { method: "POST", headers, body: JSON.stringify(body ?? {}) }).then((r) => r.json());
 
+/** O meio de pagamento vem da carteira, como na UI. */
+async function walletMethod() {
+  const r = await fetch(`${authorityUrl}/wallet/methods`, {
+    method: "POST",
+    headers: asHuman,
+    body: JSON.stringify({ rail: "card", instrument: { number: "4242424242424242" } }),
+  });
+  return (await r.json()).methodId;
+}
+
 /** "Tênis tam. 40, até R$100, só do Brasil" — o mandato da demo. */
 async function shoeMandate(over = {}) {
   const { mandateId } = await post(
@@ -75,7 +85,7 @@ async function shoeMandate(over = {}) {
       agentId: DEMO.agentId,
       mode: "autonomo",
       currency: "BRL",
-      paymentMethodRef: "pm_card_demo",
+      paymentMethodId: await walletMethod(),
       maxUses: 3,
       expiresAt: "2026-12-31T23:59:59Z",
       constraints: [

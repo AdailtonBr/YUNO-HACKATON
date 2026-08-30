@@ -9,7 +9,7 @@ A intuição errada é imaginar "o agente" como um modelo que sai comprando. Ele
 | Peça | O que é | O que faz |
 |---|---|---|
 | **Cérebro** | a API do LLM | raciocina, interpreta a intenção, decide qual ferramenta chamar e o que perguntar |
-| **Mãos** | as *tools* — funções que **nós** definimos | `search_catalog`, `get_product`, `propose_mandate`, `buy` |
+| **Mãos** | as *tools* — funções que **nós** definimos | `search_catalog`, `get_product`, `list_wallet`, `propose_mandate`, `buy` |
 | **Corpo** | o orquestrador (código nosso, Node/Express) | roda o loop: manda conversa + tools ao modelo, recebe um pedido de tool, **executa de verdade** (HTTP para lojas/Autoridade), devolve o resultado, repete |
 
 O modelo **nunca toca a rede**. Ele devolve um JSON dizendo *"quero chamar `buy` com estes argumentos"*; quem faz a chamada HTTP é o corpo. Essa separação é o que torna o resto defensável: o que o modelo produz é uma **intenção**, e toda intenção passa por código nosso antes de virar ação.
@@ -33,12 +33,14 @@ Contratos completos em `docs/03`. Aqui, o que cada uma faz e por que existe.
 ```js
 {
   name: "search_catalog",
-  description: "Busca nas lojas registradas. Devolve produtos no vocabulário comum " +
-               "mais um perfil dizendo quais atributos existem e quais VARIAM.",
+  description: "Percorre as lojas. Com `query` vazia, lista tudo. Chamada DE NOVO com " +
+               "os `productIds` dos candidatos, devolve o perfil sobre EXATAMENTE eles.",
   input_schema: {
     type: "object",
-    properties: { query: { type: "string" } },
-    required: ["query"]
+    properties: {
+      query:      { type: "string" },
+      productIds: { type: "array", items: { type: "string" } }
+    }
   }
 }
 ```
@@ -55,6 +57,25 @@ O retorno traz, além dos itens, um **`attribute_profile`** calculado **em códi
 
 É daqui que sai a regra defensável: **o agente pergunta o seu tamanho porque `size` varia entre os candidatos reais, não porque um modelo achou que devia.** A pergunta nasce do dado. Se `category` não varia, ele não pergunta — e não fazer a pergunta inútil também é parte do produto.
 
+### O passo do estreitamento (e o bug que o obrigou)
+
+`candidatos` acima é literal, e a distinção custou caro. Numa primeira versão, o perfil era calculado sobre **tudo o que a tool devolvia** — e como a busca da loja é literal e cai no catálogo inteiro quando não casa, "tudo" virou o catálogo. Sobre 29 produtos, `brand` "varia" trivialmente (tênis e pasta de dente diferem em tudo), e o agente anunciou:
+
+> *"Encontrei pastas de dente de duas marcas, **Sorriso e Sorriso**."*
+
+Ele não alucinou. **Nós dissemos a ele que `brand` variava**, e ele obedeceu. Com o perfil sobre tudo, a regra defensável vira falsa: o agente pergunta sobre tudo, sempre.
+
+Por isso `search_catalog` tem duas formas:
+
+| Chamada | Devolve |
+|---|---|
+| `{ query: "" }` | os produtos e **nenhum perfil**, mais a instrução de escolher os candidatos |
+| `{ productIds: [...] }` | exatamente esses produtos **e o perfil sobre eles** |
+
+O modelo faz o casamento semântico (é o que ele sabe fazer); o código mede a variação (é o que se pode auditar). Omitir o perfil largo é a garantia — deixá-lo disponível seria convidar o modelo a papagaiar um número sem sentido, e instrução em prompt é sugestão.
+
+Medido, para as pastas de dente: sobre o catálogo, `brand.varies = true` com 12 valores; sobre os dois candidatos, `brand.varies = false`, `["Sorriso"]`. Travado em `app1/test/profile.test.js`.
+
 ### `get_product`
 
 ```js
@@ -70,6 +91,23 @@ O retorno traz, além dos itens, um **`attribute_profile`** calculado **em códi
 ```
 
 Busca de novo na loja em vez de reusar o catálogo em memória: o preço pode ter mudado, e é o valor atestado **agora** que vai para o bilhete assinado. Se o preço mudou entre a busca e a compra, o bilhete não casa e a tentativa falha — que é o comportamento correto (ver D16).
+
+### `list_wallet`
+
+```js
+{
+  name: "list_wallet",
+  description: "Meios de pagamento e endereços cadastrados pelo humano.",
+  input_schema: { type: "object", properties: {} }
+}
+```
+
+Devolve **rótulos e ids**, nunca o número do cartão, nunca a rua, e nunca o `paymentMethodRef`. O agente aprende que existe um método chamado `•••• 4242` e um endereço chamado `Casa`; ele não sabe o número e não sabe onde é Casa. A tradução `methodId → paymentMethodRef` acontece dentro da Autoridade, no instante em que o humano autoriza — é o que mantém literal a frase do `docs/05`: *não há ponteiro solto para roubar*.
+
+**Quem decide se a compra precisa de entrega é o modelo**, a partir do que foi pedido: pasta de dente se entrega, ingresso de cinema não. É o único ponto do sistema em que um julgamento do modelo tem peso fora da conversa, e vale ser explícito sobre por que é aceitável:
+
+- **o erro não custa dinheiro.** Julgar errado dá "o mandato ficou sem endereço", não "gastou mais". Nenhuma invariante depende disso e o motor de constraints não é tocado;
+- **o julgamento vai na proposta e a Trusted Surface o mostra** — *"Entrega: Casa"* ou *"Entrega: não é necessária — ingresso"* — antes do humano autorizar. Mesmo padrão do `unconstrained`: **o modelo julga, o humano confere antes do sim.**
 
 ### `propose_mandate`
 
@@ -97,15 +135,21 @@ Busca de novo na loja em vez de reusar o catálogo em memória: o preço pode te
       mode:      { type: "string", enum: ["autonomo", "aprovacao"] },
       maxUses:   { type: "integer", minimum: 1 },
       expiresAt: { type: "string" },
-      rail:      { type: "string", enum: ["card", "pix"] },
+      paymentMethodId:   { type: "string" },   // de `list_wallet`
+      requiresDelivery:  { type: "boolean" },  // julgamento do modelo
+      shippingAddressId: { type: "string" },   // de `list_wallet`, se entrega
+      deliveryNote:      { type: "string" },   // por que, para o humano conferir
       rationale: { type: "string" }
     },
-    required: ["constraints", "mode", "maxUses", "expiresAt", "rationale"]
+    required: ["constraints", "mode", "maxUses", "expiresAt", "rationale",
+               "paymentMethodId", "requiresDelivery"]
   }
 }
 ```
 
-Grava em `mandate_proposals`. **Uma proposta não autoriza nada** — é um rascunho esperando a mão do humano na Trusted Surface.
+Grava em `mandate_proposals`. **Uma proposta não autoriza nada** — é um rascunho esperando a mão do humano na Trusted Surface. A proposta carrega o `paymentMethodId` e o `shippingAddressId` que o humano escolheu; quem os traduz para o `paymentMethodRef` é a Autoridade, ao criar o mandato.
+
+> **O agente não escolhe como você paga nem para onde vai.** O prompt manda perguntar e esperar a resposta; o código garante que ele ao menos **consultou** a carteira antes de propor (`wallet_not_consulted`). "Ele perguntou?" não é algo que uma tool consiga ver — quem fecha o resto é a Trusted Surface, que mostra *Paga com* e *Entrega* antes do sim, para o humano pegar uma escolha que não fez. É a mesma divisão de sempre: o prompt melhora a conversa, o código garante o que dá para garantir, e o humano confere no fim.
 
 **A invariante 8 é imposta aqui, não pedida no prompt.** Antes de gravar, o corpo confere cada `attr` contra os nomes que **realmente apareceram** no catálogo daquela busca:
 

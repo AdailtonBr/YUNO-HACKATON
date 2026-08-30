@@ -23,22 +23,25 @@ import { Button, Chip, Label, Panel, PanelHead, ScreenHead, Empty, Mono } from "
 
 const POLICY_TONE = { deny: "deny", escalate: "wait", allow: "mute" };
 
-export default function Proposals({ locale, proposals, reload }) {
+export default function Proposals({ locale, proposals, methods = [], addresses = [], reload }) {
   const T = (k) => t(locale, k);
   const [busy, setBusy] = useState(null);
+
+  const methodLabel = (id) => methods.find((m) => m.methodId === id)?.label;
+  const addressLabel = (id) => addresses.find((a) => a.addressId === id)?.label;
 
   const authorize = (p) => async () => {
     setBusy(p.proposalId);
     try {
-      // O instrumento cru entra no cofre AQUI, com o humano presente, e vira uma
-      // referência opaca.  A proposta do agente nunca escolhe com o que se paga.
-      const { paymentMethodRef } = await api.tokenize(
-        p.draft.rail ?? "card",
-        p.draft.rail === "pix" ? { key: "michael@pix.com" } : { number: "4242424242424242", exp: "12/29" },
-        locale
-      );
+      // Manda os IDs que você cadastrou na carteira.  A Autoridade traduz para
+      // o `paymentMethodRef` do lado dela — o ponteiro nunca passa por aqui.
       await api.createMandate(
-        { agentId: p.agentId, paymentMethodRef, proposalId: p.proposalId, ...p.draft },
+        {
+          agentId: p.agentId,
+          proposalId: p.proposalId,
+          ...p.draft,
+          shippingAddressId: p.delivery?.addressId ?? null,
+        },
         locale
       );
       await reload();
@@ -101,6 +104,28 @@ export default function Proposals({ locale, proposals, reload }) {
                   </ul>
                 </div>
               )}
+
+              {/* Como paga e para onde vai: o julgamento de entrega é do modelo,
+                  então aparece aqui para o humano conferir ANTES de autorizar. */}
+              <div className="grid gap-4 border-b border-amber-200/70 bg-white/70 px-5 py-3 sm:grid-cols-2">
+                <div>
+                  <Label>{T("proposals.paysWith")}</Label>
+                  <p className="mt-0.5 font-mono text-[13px] text-stone-800">
+                    {methodLabel(p.draft.paymentMethodId) ?? T("proposals.noMethod")}
+                  </p>
+                </div>
+                <div>
+                  <Label>{T("proposals.delivery")}</Label>
+                  <p className="mt-0.5 font-mono text-[13px] text-stone-800">
+                    {p.delivery?.required
+                      ? addressLabel(p.delivery.addressId) ?? T("proposals.noAddress")
+                      : T("proposals.noDeliveryNeeded")}
+                  </p>
+                  {p.delivery?.note && (
+                    <p className="mt-0.5 font-mono text-[11px] text-stone-400">{p.delivery.note}</p>
+                  )}
+                </div>
+              </div>
 
               {/* A tabela: para conferir. */}
               <div className="overflow-x-auto bg-white/70">

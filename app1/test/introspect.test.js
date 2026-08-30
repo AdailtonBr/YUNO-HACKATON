@@ -13,7 +13,6 @@ import { buildApp } from "../src/app.js";
 import { seed, DEMO } from "../src/seed.js";
 import { issueTicket, newNonce } from "../src/authority/ticket.js";
 import { Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal } from "../src/authority/models.js";
-import { registerRef } from "../src/authority/vault.js";
 
 let mongod, server, base;
 
@@ -53,6 +52,16 @@ beforeEach(async () => {
 
 const FUTURE = new Date("2026-12-31T23:59:59Z").toISOString();
 
+/**
+ * O meio de pagamento agora vem da carteira: o humano cadastra, e a Autoridade
+ * traduz o `methodId` para o ponteiro do lado dela.  Os testes passam pelo
+ * mesmo caminho, porque um teste que atalha o caminho nao testa o caminho.
+ */
+async function walletMethod(instrument = { number: "4242424242424242" }) {
+  const r = await post("/wallet/methods", { rail: "card", instrument }, asHuman);
+  return (await r.json()).methodId;
+}
+
 async function createMandate(over = {}) {
   const res = await post(
     "/mandates",
@@ -60,7 +69,7 @@ async function createMandate(over = {}) {
       agentId: DEMO.agentId,
       mode: "autonomo",
       currency: "BRL",
-      paymentMethodRef: "pm_card_demo",
+      paymentMethodId: over.paymentMethodId ?? (await walletMethod()),
       maxUses: 1,
       expiresAt: FUTURE,
       constraints: [
@@ -301,8 +310,8 @@ test("on_fail escalate cria pendencia com o motivo", async () => {
 /* ----------------- compensacao e concorrencia ---------------------- */
 
 test("pagamento recusado COMPENSA o uso ja consumido", async () => {
-  registerRef("pm_card_recusa", { rail: "card", instrument: { declineAll: true } });
-  const { mandateId } = await createMandate({ paymentMethodRef: "pm_card_recusa", maxUses: 1 });
+  const declining = await walletMethod({ number: "4000000000000002", declineAll: true });
+  const { mandateId } = await createMandate({ paymentMethodId: declining, maxUses: 1 });
 
   const r = await buy(mandateId);
   assert.equal(r.valid, false);
@@ -329,7 +338,7 @@ test("o humano so cria mandato para o PROPRIO agente", async () => {
   await Agent.create({ _id: "agent_outro", humanId: "user_outro", hmacSecret: "s", active: true });
   const res = await post(
     "/mandates",
-    { agentId: "agent_outro", mode: "autonomo", currency: "BRL", paymentMethodRef: "pm", expiresAt: FUTURE },
+    { agentId: "agent_outro", mode: "autonomo", currency: "BRL", paymentMethodId: await walletMethod(), expiresAt: FUTURE },
     asHuman
   );
   assert.equal(res.status, 403);
@@ -348,6 +357,82 @@ test("o agente deposita PROPOSTA, nao mandato", async () => {
   );
   assert.equal(res.status, 201);
   assert.equal(await Mandate.countDocuments({}), 0); // nenhum mandato foi criado
+});
+
+/* ----------------------------- carteira ---------------------------- */
+
+test("a carteira nunca devolve o instrumento nem o ponteiro que a Autoridade cobra", async () => {
+  const created = await post(
+    "/wallet/methods",
+    { rail: "card", instrument: { number: "4242424242424242", exp: "12/29" } },
+    asHuman
+  ).then((r) => r.json());
+
+  // Sai o methodId e um rotulo; NAO sai a ref nem o numero.
+  assert.ok(created.methodId);
+  assert.equal(created.label, "•••• 4242");
+  assert.equal(created.paymentMethodRef, undefined);
+  assert.equal(created.instrument, undefined);
+
+  const list = await get("/wallet/methods", asHuman).then((r) => r.json());
+  const raw = JSON.stringify(list);
+  assert.ok(!raw.includes("4242424242424242"), "o numero cru vazou na listagem");
+  assert.ok(!raw.includes("pm_card_"), "o paymentMethodRef vazou na listagem");
+});
+
+test("a carteira nunca devolve a rua do endereco", async () => {
+  const created = await post(
+    "/wallet/addresses",
+    { label: "Home", address: "Rua das Flores, 123 — Sao Paulo" },
+    asHuman
+  ).then((r) => r.json());
+  assert.ok(created.addressId);
+
+  const list = await get("/wallet/addresses", asHuman).then((r) => r.json());
+  assert.equal(list[0].label, "Home");
+  assert.ok(!JSON.stringify(list).includes("Rua das Flores"), "o endereco cru vazou");
+});
+
+test("methodId de OUTRA pessoa nao cria mandato", async () => {
+  const outro = await post(
+    "/wallet/methods",
+    { rail: "card", instrument: { number: "4111111111111111" } },
+    { "content-type": "application/json", "x-human-id": "user_outro" }
+  ).then((r) => r.json());
+
+  const res = await post(
+    "/mandates",
+    {
+      agentId: DEMO.agentId,
+      mode: "autonomo",
+      currency: "BRL",
+      paymentMethodId: outro.methodId, // nao e dele
+      maxUses: 1,
+      expiresAt: FUTURE,
+      constraints: [],
+    },
+    asHuman
+  );
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).error, "unknown_payment_method");
+});
+
+test("sem meio de pagamento nao ha mandato", async () => {
+  const res = await post(
+    "/mandates",
+    { agentId: DEMO.agentId, mode: "autonomo", currency: "BRL", maxUses: 1, expiresAt: FUTURE, constraints: [] },
+    asHuman
+  );
+  assert.equal(res.status, 400);
+});
+
+test("endereco escolhido fica no mandato — e o mandato guarda o ID, nao a rua", async () => {
+  const addr = await post("/wallet/addresses", { label: "Home", address: "Rua X, 1" }, asHuman).then((r) => r.json());
+  const { mandateId } = await createMandate({ shippingAddressId: addr.addressId });
+
+  const m = await Mandate.findById(mandateId).lean();
+  assert.equal(m.shippingAddressId, addr.addressId);
+  assert.ok(!JSON.stringify(m).includes("Rua X"), "a rua acabou no mandato");
 });
 
 /* ------------------------- trilho auditavel ------------------------ */

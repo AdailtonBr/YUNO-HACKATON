@@ -33,6 +33,7 @@ A Autoridade não mantém um catálogo de atributos possíveis — o motor é ab
     { attr: "ship_country", op: "eq",  value: "BR",       on_missing: "escalate", on_fail: "deny" }
   ],
   currency: "BRL",                 // moeda do mandato. A compra só passa se a moeda atestada bater com esta.
+  shippingAddressId: "adr_...",    // ID do endereço escolhido (a RUA vive no cofre), ou null se nada se entrega
   paymentMethodRef: "pm_ref_7c1e", // PONTEIRO opaco para o cofre. NUNCA o cartão/chave crus. Vinculado pelo humano.
   maxUses: 3,                      // OBRIGATÓRIO na criação. Default 1 (pedido de compra única).
   usedCount: 0,                    // contador (consumo atômico — ver TOCTOU em 05)
@@ -301,6 +302,19 @@ POST /introspect                     # chamado pela LOJA (autenticada). Coraçã
   # no caso "escalate", a AUTORIDADE grava a pendência em `approvals` e devolve o id.
   # A loja/agente só pode aguardar e tentar de novo; nenhum dos dois escreve a decisão.
   # idempotencyKey: repetir a MESMA chave devolve a MESMA resposta, sem cobrar nem consumir de novo.
+
+POST /wallet/methods                 # o humano cadastra um meio de pagamento
+  auth: sessão do humano
+  body: { rail: "card"|"pix", instrument: { ... } }   # o cru entra AQUI e não sai
+  -> { methodId, rail, label }         # NUNCA devolve o paymentMethodRef
+
+GET  /wallet/methods                 -> [ { methodId, rail, label }, ... ]
+DELETE /wallet/methods/:id
+
+POST /wallet/addresses               # body: { label, address }
+  -> { addressId, label }            # NUNCA devolve a rua
+GET  /wallet/addresses               -> [ { addressId, label }, ... ]
+DELETE /wallet/addresses/:id
 
 GET  /approvals?status=pending       # pendências do humano (Trusted Surface)
   auth: sessão do HUMANO (define humanId; o agente não tem acesso a esta rota)
