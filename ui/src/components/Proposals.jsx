@@ -26,12 +26,28 @@ const POLICY_TONE = { deny: "deny", escalate: "wait", allow: "mute" };
 export default function Proposals({ locale, proposals, methods = [], addresses = [], reload }) {
   const T = (k) => t(locale, k);
   const [busy, setBusy] = useState(null);
+  const [error, setError] = useState({});
 
   const methodLabel = (id) => methods.find((m) => m.methodId === id)?.label;
   const addressLabel = (id) => addresses.find((a) => a.addressId === id)?.label;
 
+  /**
+   * Uma proposta que não dá para autorizar.
+   *
+   * O agente pode ter apontado para um método ou endereço que não existe na
+   * carteira (ele chegou a inventar `addressId: "new"` quando o endereço foi
+   * ditado no chat em vez de cadastrado).  A Autoridade recusa, e o botão
+   * parecia não fazer nada.  Melhor não deixar clicar, e dizer por quê.
+   */
+  const blocker = (p) => {
+    if (!methodLabel(p.draft.paymentMethodId)) return T("proposals.blockedMethod");
+    if (p.delivery?.required && !addressLabel(p.delivery.addressId)) return T("proposals.blockedAddress");
+    return null;
+  };
+
   const authorize = (p) => async () => {
     setBusy(p.proposalId);
+    setError((e) => ({ ...e, [p.proposalId]: null }));
     try {
       // Manda os IDs que você cadastrou na carteira.  A Autoridade traduz para
       // o `paymentMethodRef` do lado dela — o ponteiro nunca passa por aqui.
@@ -45,6 +61,11 @@ export default function Proposals({ locale, proposals, methods = [], addresses =
         locale
       );
       await reload();
+    } catch (e) {
+      // Sem isto o erro sumia: a promessa falhava, o `finally` limpava o busy,
+      // e a tela ficava exatamente como estava.  Um botão que falha calado é
+      // pior que um botão quebrado, porque ninguém sabe procurar o problema.
+      setError((prev) => ({ ...prev, [p.proposalId]: e.data?.error ?? e.message }));
     } finally {
       setBusy(null);
     }
@@ -204,13 +225,26 @@ export default function Proposals({ locale, proposals, methods = [], addresses =
                 ))}
               </div>
 
+              {(blocker(p) || error[p.proposalId]) && (
+                <div className="border-t border-red-200 bg-red-50 px-5 py-3">
+                  <Label>{T("proposals.cannotAuthorize")}</Label>
+                  <p className="mt-1 font-sans text-[13px] leading-relaxed text-red-800">
+                    {blocker(p) ?? error[p.proposalId]}
+                  </p>
+                </div>
+              )}
+
               <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200/70 px-5 py-3">
                 <Mono value={p.proposalId} />
                 <div className="flex gap-2">
                   <Button variant="refuse" onClick={discard(p)} disabled={busy === p.proposalId}>
                     {T("proposals.discard")}
                   </Button>
-                  <Button variant="approve" onClick={authorize(p)} disabled={busy === p.proposalId}>
+                  <Button
+                    variant="approve"
+                    onClick={authorize(p)}
+                    disabled={busy === p.proposalId || !!blocker(p)}
+                  >
                     {busy === p.proposalId ? T("proposals.authorizing") : T("proposals.authorize")}
                   </Button>
                 </div>

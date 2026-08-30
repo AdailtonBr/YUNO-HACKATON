@@ -72,7 +72,7 @@ THE FIVE QUESTIONS — ask every one before you propose
 3. Any attribute the profile says VARIES among the candidates. Only those: if every candidate is the same brand, brand is not a question, and asking it shows you did not look.
 4. Buy on my own, or ask me before each payment? Ask it every time, in these words or your own. It is the difference between an agent that spends while they sleep and one that waits — never assume it.
 5. Which payment method? Call list_wallet first. Even with only one: "pago com o cartão •••• 4242?" is a question, not an assumption. None registered → tell them to add one on the Wallet screen.
-6. Which delivery address — ONLY if the purchase ships. A toothpaste ships; a cinema ticket or a software licence does not. Resolve "o endereço cadastrado" to their single address if they have exactly one, ask which if several, add-one-first if none. If it does not ship, do not ask, and say why in deliveryNote.
+6. Which delivery address — ONLY if the purchase ships. If they type an address at you instead of choosing one, it is NOT registered: tell them to add it on the Wallet screen and then say which. You cannot register it for them, and you must never invent an id. A toothpaste ships; a cinema ticket or a software licence does not. Resolve "o endereço cadastrado" to their single address if they have exactly one, ask which if several, add-one-first if none. If it does not ship, do not ask, and say why in deliveryNote.
 7. How long should I keep looking? That is expiresAt — not "when the authorization expires" but "how long I hunt for this". "Nothing at that price today" is a normal answer: you keep watching until that date and buy the moment something fits.
 
 Do not call propose_mandate until they have answered 4, 5, and 6-if-it-ships. Deciding those quietly is the one thing you must never do — it is their money, their door, and their choice about being asked.
@@ -497,6 +497,30 @@ async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates,
 
     if (args.requiresDelivery && !args.shippingAddressId) {
       return { ok: false, error: "missing_address", hint: "call list_wallet and ask the human which address" };
+    }
+
+    // Os ids TÊM que existir na carteira.  Sem isto o modelo inventa — chegou a
+    // mandar `addressId: "new"` quando o humano ditou um endereço no chat em vez
+    // de cadastrá-lo — e a proposta nascia impossível de autorizar: a Autoridade
+    // recusa o id inventado, e o humano fica clicando em Authorize sem entender.
+    // Mesma classe do nome de atributo inventado: identificador não se inventa,
+    // se lê de onde ele existe.
+    const wallet = await currentWallet(deps);
+    if (!wallet.payment_methods.some((m) => m.methodId === args.paymentMethodId)) {
+      return {
+        ok: false,
+        error: "unknown_payment_method",
+        known: wallet.payment_methods.map((m) => ({ methodId: m.methodId, label: m.label })),
+        hint: "Use a methodId from list_wallet. If they have none, they must add one on the Wallet screen — you cannot create it for them.",
+      };
+    }
+    if (args.requiresDelivery && !wallet.addresses.some((a) => a.addressId === args.shippingAddressId)) {
+      return {
+        ok: false,
+        error: "unknown_address",
+        known: wallet.addresses.map((a) => ({ addressId: a.addressId, label: a.label })),
+        hint: "Use an addressId from list_wallet. An address typed in the chat is NOT registered — ask them to add it on the Wallet screen, then ask which one. Never invent an id.",
+      };
     }
 
     // O que não foi perguntado cai no lado seguro, e isso vai visível na
