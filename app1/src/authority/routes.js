@@ -9,15 +9,12 @@
 
 import express from "express";
 import crypto from "node:crypto";
-import { Mandate, Merchant, Agent, Approval, Proposal, AuditLog, Dispute } from "./models.js";
+import { Mandate, Merchant, Agent, Approval, Proposal, AuditLog, Dispute, PaymentMethod, Address } from "./models.js";
 import { mandateStatus } from "./engine.js";
 import { introspect } from "./introspect.js";
 import { resolveDispute } from "./dispute.js";
 import { opaqueId } from "./ticket.js";
-import {
-  tokenize, listMethods, resolveMethod, forgetMethod,
-  addAddress, listAddresses, resolveAddress, forgetAddress,
-} from "./vault.js";
+import { tokenize } from "./vault.js";
 import { humanReadable, reasonText } from "../shared/messages.js";
 
 const sha256 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
@@ -77,11 +74,15 @@ export function buildRouter() {
 
     // A tradução id -> ref acontece AQUI, dentro da Autoridade, com o humano
     // autenticado.  Nem a UI nem o agente jamais tocam o `paymentMethodRef`.
-    const method = paymentMethodId ? resolveMethod(req.humanId, paymentMethodId) : null;
+    const method = paymentMethodId
+      ? await PaymentMethod.findOne({ _id: paymentMethodId, humanId: req.humanId }).lean()
+      : null;
     if (!method) return res.status(400).json({ error: "unknown_payment_method" });
 
     // Endereço é opcional: nem tudo se entrega (ingresso, assinatura).
-    const address = shippingAddressId ? resolveAddress(req.humanId, shippingAddressId) : null;
+    const address = shippingAddressId
+      ? await Address.findOne({ _id: shippingAddressId, humanId: req.humanId }).lean()
+      : null;
     if (shippingAddressId && !address) return res.status(400).json({ error: "unknown_address" });
     const agent = await Agent.findById(agentId).lean();
     // O humano só pode dar mandato ao PRÓPRIO agente.
@@ -105,7 +106,7 @@ export function buildRouter() {
       agentId,
       ...draft,
       paymentMethodRef: method.paymentMethodRef,
-      shippingAddressId: address?.addressId ?? null,
+      shippingAddressId: address?._id ?? null,
       // Derivado do MESMO JSON que será verificado — nunca escrito em paralelo.
       humanReadable: humanReadable(draft, locale(req)),
     });
@@ -389,38 +390,58 @@ export function buildRouter() {
    * O instrumento cru entra por aqui, com o humano presente, e não volta.  O
    * que sai é `methodId` + rótulo; o `paymentMethodRef` fica dentro do cofre.
    */
-  r.post("/wallet/methods", requireHuman, (req, res) => {
+  r.post("/wallet/methods", requireHuman, async (req, res) => {
     try {
       const { rail, instrument } = req.body ?? {};
-      const { methodId, label } = tokenize({ rail, instrument, humanId: req.humanId });
-      res.status(201).json({ methodId, rail, label }); // sem a ref, de propósito
+      // O cru vai para o COFRE; o que guardamos aqui é o ponteiro e o rótulo.
+      const { paymentMethodRef, label } = tokenize({ rail, instrument });
+      const m = await PaymentMethod.create({
+        _id: opaqueId("pm"),
+        humanId: req.humanId,
+        paymentMethodRef,
+        rail,
+        label,
+      });
+      res.status(201).json({ methodId: m._id, rail: m.rail, label: m.label }); // sem a ref
     } catch {
       res.status(400).json({ error: "unsupported_rail" });
     }
   });
 
-  r.get("/wallet/methods", requireHuman, (req, res) => res.json(listMethods(req.humanId)));
-
-  r.delete("/wallet/methods/:id", requireHuman, (req, res) =>
-    forgetMethod(req.humanId, req.params.id)
-      ? res.json({ ok: true })
-      : res.status(404).json({ error: "unknown_method" })
-  );
-
-  r.post("/wallet/addresses", requireHuman, (req, res) => {
-    const { label, address } = req.body ?? {};
-    if (!label?.trim() || !address?.trim()) return res.status(400).json({ error: "missing_fields" });
-    res.status(201).json(addAddress({ humanId: req.humanId, label: label.trim(), address: address.trim() }));
+  r.get("/wallet/methods", requireHuman, async (req, res) => {
+    const list = await PaymentMethod.find({ humanId: req.humanId }).sort({ createdAt: 1 }).lean();
+    // Rótulos e ids.  O `paymentMethodRef` fica de fora: é o ponteiro que a
+    // Autoridade cobra, e nem a UI nem o agente precisam conhecê-lo.
+    res.json(list.map((m) => ({ methodId: m._id, rail: m.rail, label: m.label, createdAt: m.createdAt })));
   });
 
-  // Devolve rótulos.  A rua fica no cofre, como o número do cartão.
-  r.get("/wallet/addresses", requireHuman, (req, res) => res.json(listAddresses(req.humanId)));
+  r.delete("/wallet/methods/:id", requireHuman, async (req, res) => {
+    const del = await PaymentMethod.deleteOne({ _id: req.params.id, humanId: req.humanId });
+    del.deletedCount ? res.json({ ok: true }) : res.status(404).json({ error: "unknown_method" });
+  });
 
-  r.delete("/wallet/addresses/:id", requireHuman, (req, res) =>
-    forgetAddress(req.humanId, req.params.id)
-      ? res.json({ ok: true })
-      : res.status(404).json({ error: "unknown_address" })
-  );
+  r.post("/wallet/addresses", requireHuman, async (req, res) => {
+    const { label, address } = req.body ?? {};
+    if (!label?.trim() || !address?.trim()) return res.status(400).json({ error: "missing_fields" });
+    const a = await Address.create({
+      _id: opaqueId("adr"),
+      humanId: req.humanId,
+      label: label.trim(),
+      address: address.trim(),
+    });
+    res.status(201).json({ addressId: a._id, label: a.label });
+  });
+
+  // Devolve rótulos.  A rua fica guardada e não sai numa listagem.
+  r.get("/wallet/addresses", requireHuman, async (req, res) => {
+    const list = await Address.find({ humanId: req.humanId }).sort({ createdAt: 1 }).lean();
+    res.json(list.map((a) => ({ addressId: a._id, label: a.label, createdAt: a.createdAt })));
+  });
+
+  r.delete("/wallet/addresses/:id", requireHuman, async (req, res) => {
+    const del = await Address.deleteOne({ _id: req.params.id, humanId: req.humanId });
+    del.deletedCount ? res.json({ ok: true }) : res.status(404).json({ error: "unknown_address" });
+  });
 
 
   return r;

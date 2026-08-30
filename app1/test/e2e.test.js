@@ -15,7 +15,7 @@ import { buildApp } from "../src/app.js";
 import { seed, DEMO } from "../src/seed.js";
 import { buildStore } from "../../app2/src/store.js";
 import { STORES } from "../../app2/src/catalogs.js";
-import { Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal } from "../src/authority/models.js";
+import { Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal, PaymentMethod, Address } from "../src/authority/models.js";
 import { mandateStatus } from "../src/authority/engine.js";
 import { runTick } from "../src/agent/watcher.js";
 
@@ -56,7 +56,7 @@ after(async () => {
 
 beforeEach(async () => {
   await Promise.all(
-    [Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal].map((m) => m.deleteMany({}))
+    [Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal, PaymentMethod, Address].map((m) => m.deleteMany({}))
   );
   await seed();
 });

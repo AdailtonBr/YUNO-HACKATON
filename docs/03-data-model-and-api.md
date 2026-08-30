@@ -158,6 +158,29 @@ O agente **deposita** aqui; ele não escreve em `mandates`. Só a confirmação 
 
 `paymentMethodRef` **não** vem na proposta: o humano vincula o método na Trusted Surface, no momento da confirmação. O agente não escolhe com o que se paga.
 
+## Coleções `payment_methods` e `addresses` (a carteira do humano)
+
+```js
+// payment_methods
+{
+  _id: "pm_1a2b...",               // methodId — o ÚNICO identificador que sai daqui
+  humanId: "user_michael",
+  paymentMethodRef: "pm_card_...", // ponteiro para o cofre; nunca sai numa listagem
+  rail: "card",
+  label: "•••• 4242",              // para reconhecer, não para reconstruir
+  createdAt: ISODate("...")
+}
+
+// addresses
+{ _id: "adr_...", humanId, label: "Casa", address: "Rua …, 123", createdAt }
+```
+
+Repare no que a Autoridade guarda e no que ela **não** guarda: o ponteiro e um rótulo, **nunca o instrumento**. O número do cartão fica no cofre — mock em memória aqui, o PSP em produção — e o banco da Autoridade nunca chega a vê-lo. É a invariante 6 valendo também para o disco, não só para o agente.
+
+**Dois identificadores, de propósito.** O `paymentMethodRef` é o que a Autoridade cobra; o `methodId` é o que a UI e o agente veem. A tradução de um para o outro acontece dentro da Autoridade, no instante em que o humano autoriza um mandato — é isso que mantém literal a frase do `docs/05`: *não há ponteiro solto para roubar*.
+
+Consequência honesta do mock: reiniciar esvazia o cofre falso, então um ponteiro persistido deixa de encontrar seu instrumento. `charge` degrada em vez de quebrar — o que também espelha a realidade, já que o PSP é um sistema separado e a nossa base guarda apenas o token.
+
 ## Coleção `disputes` (Autoridade / "eu nunca autorizei isso")
 
 O veredito é **calculado do trilho**, nunca afirmado — e depois **congelado**, com a evidência que o sustentou. Recalcular meses depois, sobre um trilho que cresceu, daria outra resposta; uma resolução que muda sozinha não resolve nada.

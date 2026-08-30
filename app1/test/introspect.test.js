@@ -12,7 +12,7 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 import { buildApp } from "../src/app.js";
 import { seed, DEMO } from "../src/seed.js";
 import { issueTicket, newNonce } from "../src/authority/ticket.js";
-import { Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal } from "../src/authority/models.js";
+import { Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal, PaymentMethod, Address } from "../src/authority/models.js";
 
 let mongod, server, base;
 
@@ -43,7 +43,7 @@ after(async () => {
 
 beforeEach(async () => {
   await Promise.all(
-    [Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal].map((m) => m.deleteMany({}))
+    [Mandate, Approval, AuditLog, Merchant, Agent, UsedNonce, Idempotency, Proposal, PaymentMethod, Address].map((m) => m.deleteMany({}))
   );
   await seed();
 });
@@ -449,6 +449,34 @@ test("a carteira nunca devolve a rua do endereco", async () => {
   const list = await get("/wallet/addresses", asHuman).then((r) => r.json());
   assert.equal(list[0].label, "Home");
   assert.ok(!JSON.stringify(list).includes("Rua das Flores"), "o endereco cru vazou");
+});
+
+test("a carteira vive no BANCO — e o instrumento cru nao vai junto", async () => {
+  const created = await post(
+    "/wallet/methods",
+    { rail: "card", instrument: { number: "4242424242424242", exp: "12/29" } },
+    asHuman
+  ).then((r) => r.json());
+
+  // Esta no Mongo: sobrevive a um restart, ao contrario do mapa em memoria.
+  const doc = await PaymentMethod.findById(created.methodId).lean();
+  assert.ok(doc, "o metodo foi persistido");
+  assert.equal(doc.humanId, DEMO.humanId);
+
+  // Mas o que esta persistido e o PONTEIRO e o rotulo -- nunca o numero.
+  // O cru fica no cofre (mock em memoria; em producao, o PSP).
+  const raw = JSON.stringify(doc);
+  assert.ok(raw.includes("pm_card_"), "guarda o ponteiro do cofre");
+  assert.ok(!raw.includes("4242424242424242"), "o numero cru foi parar no banco");
+  assert.equal(doc.label, "•••• 4242");
+});
+
+test("o endereco vive no banco, e a rua nao sai numa listagem", async () => {
+  const a = await post("/wallet/addresses", { label: "Home", address: "Rua X, 1" }, asHuman).then((r) => r.json());
+  const doc = await Address.findById(a.addressId).lean();
+  assert.equal(doc.address, "Rua X, 1"); // guardada
+  const list = await get("/wallet/addresses", asHuman).then((r) => r.json());
+  assert.ok(!JSON.stringify(list).includes("Rua X"), "a rua vazou na listagem");
 });
 
 test("methodId de OUTRA pessoa nao cria mandato", async () => {

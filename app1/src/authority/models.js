@@ -165,6 +165,39 @@ const disputeSchema = new Schema(
   opts
 );
 
+/**
+ * A carteira do humano.
+ *
+ * Repare no que ESTA coleção guarda e no que ela não guarda: o `methodId`
+ * opaco, o ponteiro do cofre e um rótulo curto — **nunca o instrumento**.  O
+ * número do cartão fica no cofre (aqui, um mock em memória; em produção, o
+ * PSP), e o banco da Autoridade nunca chega a vê-lo.  É a invariante 6 valendo
+ * também para o disco, não só para o agente.
+ */
+const paymentMethodSchema = new Schema(
+  {
+    _id: String, // methodId — o único identificador que sai daqui
+    humanId: { type: String, required: true, index: true },
+    paymentMethodRef: { type: String, required: true }, // ponteiro; nunca sai numa listagem
+    rail: String,
+    label: String, // "•••• 4242": para reconhecer, não para reconstruir
+    createdAt: { type: Date, default: Date.now },
+  },
+  opts
+);
+
+/** Endereços de entrega.  A rua fica aqui e não sai numa listagem. */
+const addressSchema = new Schema(
+  {
+    _id: String, // addressId
+    humanId: { type: String, required: true, index: true },
+    label: { type: String, required: true },
+    address: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  opts
+);
+
 /** Resposta gravada por chave: repetir a chave devolve o MESMO resultado. */
 const idempotencySchema = new Schema(
   {
@@ -182,5 +215,7 @@ export const Approval = model("Approval", approvalSchema, "approvals");
 export const UsedNonce = model("UsedNonce", usedNonceSchema, "used_nonces");
 export const Proposal = model("Proposal", proposalSchema, "mandate_proposals");
 export const AuditLog = model("AuditLog", auditSchema, "audit_log");
+export const PaymentMethod = model("PaymentMethod", paymentMethodSchema, "payment_methods");
+export const Address = model("Address", addressSchema, "addresses");
 export const Dispute = model("Dispute", disputeSchema, "disputes");
 export const Idempotency = model("Idempotency", idempotencySchema, "idempotency");
