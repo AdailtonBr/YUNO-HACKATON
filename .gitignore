@@ -4,3 +4,7 @@ node_modules/
 *.log
 .DS_Store
 ui/dist/
+
+# Resumo do projeto: material de apresentacao, gerado sob demanda.
+docs/resumo-projeto.html
+docs/resumo-projeto.pdf
