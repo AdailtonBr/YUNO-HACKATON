@@ -171,7 +171,7 @@ export function buildRouter() {
   /* --- Propostas: o agente rascunha, o humano confirma ------------- */
 
   r.post("/proposals", requireAgent, async (req, res) => {
-    const { draft, rationale } = req.body ?? {};
+    const { draft, rationale, unconstrained } = req.body ?? {};
     if (!draft) return res.status(400).json({ error: "missing_draft" });
     const p = await Proposal.create({
       _id: opaqueId("prp"),
@@ -179,6 +179,7 @@ export function buildRouter() {
       agentId: req.agentId,
       draft,
       rationale,
+      unconstrained: unconstrained ?? [],
     });
     // O agente depositou um rascunho.  Isto NÃO é um mandato.
     res.status(201).json({ proposalId: p._id });
@@ -194,6 +195,7 @@ export function buildRouter() {
         agentId: p.agentId,
         draft: p.draft,
         rationale: p.rationale,
+        unconstrained: p.unconstrained ?? [],
         createdAt: p.createdAt,
         // A frase vem do MESMO renderizador que grava o mandato: o humano revisa
         // exatamente o que será verificado, não uma descrição paralela.

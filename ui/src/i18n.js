@@ -86,6 +86,10 @@ const en = {
     draftedBy: "drafted by {agent}",
     whatYouAuthorize: "What you are authorizing",
     renderedByServer: "generated from the same JSON that will be enforced",
+    notLimited: "Not limited by this mandate",
+    notLimitedNote:
+      "These differ between the products on offer, and the agent left them open. It may pick any of them. Discard and tell the agent if that is not what you meant.",
+    catalogHas: "in the catalog:",
     rule: "Rule",
     limit: "Limit",
     ifMissing: "If not reported",
@@ -235,6 +239,10 @@ const pt = {
     draftedBy: "rascunhada por {agent}",
     whatYouAuthorize: "O que você está autorizando",
     renderedByServer: "gerado do mesmo JSON que será verificado",
+    notLimited: "Não limitado por este mandato",
+    notLimitedNote:
+      "Isto varia entre os produtos à venda, e o agente deixou em aberto. Ele pode escolher qualquer um. Se não era isso, descarte e diga a ele.",
+    catalogHas: "no catálogo:",
     rule: "Regra",
     limit: "Limite",
     ifMissing: "Se não informar",

@@ -102,6 +102,9 @@ const proposalSchema = new Schema(
     agentId: { type: String, required: true },
     draft: { type: Schema.Types.Mixed, required: true }, // mesmo formato que será verificado
     rationale: String,
+    // Atributos que VARIAM no catálogo e não têm regra: o humano vê o que está
+    // deixando em aberto antes de autorizar.
+    unconstrained: { type: Schema.Types.Mixed, default: [] },
     status: { type: String, enum: ["pending", "confirmed", "discarded"], default: "pending" },
     mandateId: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },

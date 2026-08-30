@@ -72,6 +72,7 @@ WHAT YOU DO
 5. After they authorize it (a mandateId will appear in the conversation), call buy to attempt the purchase.
 
 DRAFTING A PROPOSAL
+- If you asked about an attribute that varies and they answered only some of them, ask once more about the ones they skipped before proposing. Silence is not "I do not care" — a mandate without a size rule lets you buy any size, which is looser than they think they authorized. If they say they do not care, proceed without that rule.
 - Every limit the human stated must appear as a constraint. They said size 40 -> {attr:"size", op:"eq", value:"40"}. They said only from Brazil -> {attr:"ship_country", op:"eq", value:"BR"}. They said up to 100 reais -> {attr:"price", op:"lte", value:10000}. Dropping one silently would hand them a mandate looser than what they asked for.
 - maxUses is 1 unless they explicitly asked for more than one purchase.
 - Use on_missing:"deny" and on_fail:"deny" unless they said they want to be asked.
@@ -330,6 +331,20 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
       })),
     };
 
+    // O que VARIA no catálogo e ficou sem regra.  Calculado aqui, em código, a
+    // partir do catálogo real — não é opinião do modelo.
+    //
+    // Existe porque o silêncio do humano não é "tanto faz": se `size` varia
+    // entre 40 e 42 e ele não respondeu, um mandato sem regra de tamanho
+    // autoriza qualquer tamanho.  O modelo deveria perguntar de novo, mas
+    // "deveria" é prompt.  Isto é o que garante que, se ele não perguntar, a
+    // Trusted Surface mostra ao humano o que NÃO está limitado antes do sim.
+    const profile = attributeProfile(universe);
+    const covered = new Set(draft.constraints.map((c) => c.attr));
+    const unconstrained = Object.entries(profile)
+      .filter(([attr, p]) => p.varies && !covered.has(attr))
+      .map(([attr, p]) => ({ attr, values: p.distinct_values }));
+
     // O agente DEPOSITA. Ele autentica como agente, e esta rota não cria mandato.
     const res = await fetch(`${deps.authorityUrl}/proposals`, {
       method: "POST",
@@ -338,13 +353,18 @@ async function runTool(name, args, { deps, mandate, lastCatalog, events }) {
         "x-agent-id": deps.agentId,
         "x-agent-secret": deps.agentSecret,
       },
-      body: JSON.stringify({ draft, rationale: args.rationale }),
+      body: JSON.stringify({ draft, rationale: args.rationale, unconstrained }),
     });
     const body = await res.json();
     if (!res.ok) return { ok: false, error: body.error ?? "proposal_failed" };
 
-    events.push({ type: "proposal", proposalId: body.proposalId, draft, rationale: args.rationale });
-    return { ok: true, proposalId: body.proposalId, note: "Drafted. The human must authorize it before you can buy." };
+    events.push({ type: "proposal", proposalId: body.proposalId, draft, rationale: args.rationale, unconstrained });
+    return {
+      ok: true,
+      proposalId: body.proposalId,
+      unconstrained_shown_to_human: unconstrained.map((u) => u.attr),
+      note: "Drafted. The human must authorize it before you can buy. Anything you left unconstrained is shown to them explicitly.",
+    };
   }
 
   if (name === "buy") {

@@ -88,12 +88,18 @@ const CONSTRAINT_PHRASE = {
     price: (c, cur) => (c.op === "lte" ? `spend at most ${money(c.value, cur, "en")}` : `price ${c.op} ${c.value}`),
     category: (c) => (c.op === "eq" ? `buy only ${c.value}` : `category ${c.op} ${fmt(c.value)}`),
     ship_country: (c) => (c.op === "eq" ? `only from sellers in ${c.value}` : `shipping country ${c.op} ${fmt(c.value)}`),
+    size: (c) => (c.op === "eq" ? `size ${c.value}` : `size ${c.op} ${fmt(c.value)}`),
+    color: (c) => (c.op === "in" ? `in ${fmt(c.value)}` : c.op === "eq" ? `in ${c.value}` : `color ${c.op} ${fmt(c.value)}`),
+    brand: (c) => (c.op === "eq" ? `from ${c.value}` : `brand ${c.op} ${fmt(c.value)}`),
     _default: (c) => `${c.attr} ${c.op} ${fmt(c.value)}`,
   },
   "pt-BR": {
     price: (c, cur) => (c.op === "lte" ? `gastar no máximo ${money(c.value, cur, "pt-BR")}` : `preço ${c.op} ${c.value}`),
     category: (c) => (c.op === "eq" ? `comprar só ${c.value}` : `categoria ${c.op} ${fmt(c.value)}`),
     ship_country: (c) => (c.op === "eq" ? `só de vendedores em ${c.value}` : `país de origem ${c.op} ${fmt(c.value)}`),
+    size: (c) => (c.op === "eq" ? `tamanho ${c.value}` : `tamanho ${c.op} ${fmt(c.value)}`),
+    color: (c) => (c.op === "in" ? `na cor ${fmt(c.value)}` : c.op === "eq" ? `na cor ${c.value}` : `cor ${c.op} ${fmt(c.value)}`),
+    brand: (c) => (c.op === "eq" ? `da marca ${c.value}` : `marca ${c.op} ${fmt(c.value)}`),
     _default: (c) => `${c.attr} ${c.op} ${fmt(c.value)}`,
   },
 };

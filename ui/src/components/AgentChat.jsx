@@ -112,10 +112,19 @@ export default function AgentChat({ locale, mandate, reload, goToProposals }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log.length, busy]);
+
+  // O campo devolve o foco quando o agente termina.  Antes ele era `disabled`
+  // durante a espera — e desabilitar um input tira o foco dele, obrigando a
+  // clicar de novo a cada mensagem.  Agora ele segue habilitado (dá para já ir
+  // escrevendo a próxima) e só o envio fica bloqueado.
+  useEffect(() => {
+    if (!busy) inputRef.current?.focus();
+  }, [busy]);
 
   const send = async () => {
     const text = draft.trim();
@@ -196,12 +205,13 @@ export default function AgentChat({ locale, mandate, reload, goToProposals }) {
       <div className="shrink-0 border-t border-stone-200 pt-4">
         <div className="flex items-end gap-3">
           <input
+            ref={inputRef}
+            autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
             placeholder={T("chat.placeholder")}
-            disabled={busy}
-            className="flex-1 rounded border border-stone-300 bg-white px-3.5 py-2.5 font-sans text-[14px] text-stone-900 outline-none transition focus:border-stone-800 focus:ring-2 focus:ring-stone-900/10 disabled:bg-stone-50"
+            className="flex-1 rounded border border-stone-300 bg-white px-3.5 py-2.5 font-sans text-[14px] text-stone-900 outline-none transition focus:border-stone-800 focus:ring-2 focus:ring-stone-900/10"
           />
           <Button onClick={send} disabled={busy || !draft.trim()}>
             {T("chat.send")}

@@ -82,6 +82,26 @@ export default function Proposals({ locale, proposals, reload }) {
                 <p className="mt-2 font-mono text-[10.5px] text-stone-500">{T("proposals.renderedByServer")}</p>
               </div>
 
+              {/* O que ficou EM ABERTO.  Uma regra ausente não aparece numa
+                  tabela de regras — e é justamente a ausência que alarga o
+                  mandato sem o humano perceber.  Por isso vem antes da tabela. */}
+              {(p.unconstrained ?? []).length > 0 && (
+                <div className="border-b border-amber-200/70 bg-amber-50/60 px-5 py-3.5">
+                  <Label>{T("proposals.notLimited")}</Label>
+                  <p className="mt-1 font-sans text-[13px] leading-relaxed text-amber-900">
+                    {T("proposals.notLimitedNote")}
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {p.unconstrained.map((u) => (
+                      <li key={u.attr} className="font-mono text-[12.5px] text-amber-900">
+                        <span className="font-semibold">{u.attr}</span>
+                        <span className="text-amber-700"> — {T("proposals.catalogHas")} {u.values.join(", ")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* A tabela: para conferir. */}
               <div className="overflow-x-auto bg-white/70">
                 <table className="w-full">
