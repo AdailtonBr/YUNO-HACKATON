@@ -250,10 +250,30 @@ export function buildRouter() {
     })
       .sort({ createdAt: -1 })
       .lean();
+
+    // O mandato que gerou cada pendência vai junto.  "Qual autorização minha
+    // permitiu isto?" é a primeira pergunta de quem vê uma compra estranha, e
+    // ela não deveria exigir abrir outra tela e cruzar ids na mão.
+    const mandates = await Mandate.find({
+      _id: { $in: [...new Set(list.map((a) => a.mandateId))] },
+    }).lean();
+    const byId = new Map(mandates.map((m) => [m._id, m]));
+
     res.json(
       list.map((a) => ({
         approvalId: a._id,
         mandateId: a.mandateId,
+        name: a.name ?? null,
+        mandate: byId.get(a.mandateId)
+          ? {
+              humanReadable: byId.get(a.mandateId).humanReadable,
+              status: mandateStatus(byId.get(a.mandateId)),
+              mode: byId.get(a.mandateId).mode,
+              constraints: byId.get(a.mandateId).constraints,
+              usedCount: byId.get(a.mandateId).usedCount,
+              maxUses: byId.get(a.mandateId).maxUses,
+            }
+          : null,
         merchantId: a.merchantId,
         productId: a.productId,
         price: a.price,

@@ -72,6 +72,7 @@ const approvalSchema = new Schema(
     humanId: { type: String, required: true, index: true },
     merchantId: { type: String, required: true },
     productId: { type: String, required: true },
+    name: String, // o que o humano lê; `productId` é o que a regra usa
     price: { type: Number, required: true }, // congelado: o humano aprova um número
     currency: { type: String, required: true },
     attributes: { type: Schema.Types.Mixed, default: {} },

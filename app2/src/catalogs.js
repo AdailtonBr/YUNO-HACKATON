@@ -27,31 +27,31 @@
 
 const CATALOG_A = [
   // calçado — o "Runner Shoe" existe nas duas lojas, em variantes diferentes
-  { sku: "TEN-001", nome: "Runner Shoe", preco_reais: 98.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
+  { sku: "TEN-001", subtipo: "running_shoe", nome: "Runner Shoe", preco_reais: 98.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
   // Mais barato, mas vem da China: existe para a constraint de país barrar.
-  { sku: "TEN-002", nome: "Runner Shoe", preco_reais: 92.5, tipo: "calcado", origem: "CN", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
-  { sku: "TEN-003", nome: "Runner Shoe", preco_reais: 95.0, tipo: "calcado", origem: "BR", numeracao: "42", cor: "azul", marca: "Acme", disponivel: true },
-  { sku: "TEN-004", nome: "Trail Shoe", preco_reais: 310.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "verde", marca: "Trilha", disponivel: true },
-  { sku: "TEN-005", nome: "Court Shoe", preco_reais: 145.0, tipo: "calcado", origem: "BR", numeracao: "41", cor: "branco", marca: "Acme", disponivel: true },
+  { sku: "TEN-002", subtipo: "running_shoe", nome: "Runner Shoe", preco_reais: 92.5, tipo: "calcado", origem: "CN", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
+  { sku: "TEN-003", subtipo: "running_shoe", nome: "Runner Shoe", preco_reais: 95.0, tipo: "calcado", origem: "BR", numeracao: "42", cor: "azul", marca: "Acme", disponivel: true },
+  { sku: "TEN-004", subtipo: "trail_shoe", nome: "Trail Shoe", preco_reais: 310.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "verde", marca: "Trilha", disponivel: true },
+  { sku: "TEN-005", subtipo: "court_shoe", nome: "Court Shoe", preco_reais: 145.0, tipo: "calcado", origem: "BR", numeracao: "41", cor: "branco", marca: "Acme", disponivel: true },
 
   // eletrônico
-  { sku: "ELE-001", nome: "Studio Headphones", preco_reais: 249.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Sonora", disponivel: true },
-  { sku: "ELE-002", nome: "Mechanical Keyboard", preco_reais: 389.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Teclas", disponivel: true },
-  { sku: "ELE-003", nome: "Desk Lamp", preco_reais: 89.9, tipo: "eletronico", origem: "CN", cor: "branco", marca: "Lumi", disponivel: true },
+  { sku: "ELE-001", subtipo: "headphones", nome: "Studio Headphones", preco_reais: 249.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Sonora", disponivel: true },
+  { sku: "ELE-002", subtipo: "keyboard", nome: "Mechanical Keyboard", preco_reais: 389.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Teclas", disponivel: true },
+  { sku: "ELE-003", subtipo: "desk_lamp", nome: "Desk Lamp", preco_reais: 89.9, tipo: "eletronico", origem: "CN", cor: "branco", marca: "Lumi", disponivel: true },
 
   // higiene
-  { sku: "HIG-001", nome: "Toothpaste", preco_reais: 12.9, tipo: "higiene", origem: "BR", marca: "Sorriso", disponivel: true },
-  { sku: "HIG-002", nome: "Sunscreen", preco_reais: 58.0, tipo: "higiene", origem: "BR", marca: "SolPro", disponivel: true },
-  { sku: "HIG-003", nome: "Shampoo", preco_reais: 27.5, tipo: "higiene", origem: "CN", marca: "Cabelo", disponivel: true },
+  { sku: "HIG-001", subtipo: "toothpaste", nome: "Toothpaste", preco_reais: 12.9, tipo: "higiene", origem: "BR", marca: "Sorriso", disponivel: true },
+  { sku: "HIG-002", subtipo: "sunscreen", nome: "Sunscreen", preco_reais: 58.0, tipo: "higiene", origem: "BR", marca: "SolPro", disponivel: true },
+  { sku: "HIG-003", subtipo: "shampoo", nome: "Shampoo", preco_reais: 27.5, tipo: "higiene", origem: "CN", marca: "Cabelo", disponivel: true },
 
   // software — só na Loja A, e SEM `origem` no cadastro: é o que exercita
   // `on_missing` de verdade, porque o atributo simplesmente não viaja.
-  { sku: "SUB-001", nome: "Cloud Plan", preco_reais: 40.0, tipo: "software", marca: "Nuvem", disponivel: true },
-  { sku: "SUB-002", nome: "Photo Editor License", preco_reais: 129.0, tipo: "software", marca: "Pixel", disponivel: true },
+  { sku: "SUB-001", subtipo: "cloud_plan", nome: "Cloud Plan", preco_reais: 40.0, tipo: "software", marca: "Nuvem", disponivel: true },
+  { sku: "SUB-002", subtipo: "photo_editor", nome: "Photo Editor License", preco_reais: 129.0, tipo: "software", marca: "Pixel", disponivel: true },
 
   // evento
-  { sku: "EVT-001", nome: "Concert Ticket", preco_reais: 180.0, tipo: "evento", origem: "BR", marca: "Palco", disponivel: true },
-  { sku: "EVT-002", nome: "Museum Pass", preco_reais: 45.0, tipo: "evento", origem: "BR", marca: "Acervo", disponivel: true },
+  { sku: "EVT-001", subtipo: "concert_ticket", nome: "Concert Ticket", preco_reais: 180.0, tipo: "evento", origem: "BR", marca: "Palco", disponivel: true },
+  { sku: "EVT-002", subtipo: "museum_pass", nome: "Museum Pass", preco_reais: 45.0, tipo: "evento", origem: "BR", marca: "Acervo", disponivel: true },
 ];
 
 const CATEGORY_A = { calcado: "calcado", software: "software", higiene: "higiene", eletronico: "eletronico", evento: "evento" };
@@ -62,6 +62,11 @@ const toCommonA = (p) => ({
   price: Math.round(p.preco_reais * 100), // centavos: evita float no dinheiro
   currency: "BRL",
   category: CATEGORY_A[p.tipo],
+  // `category` é grossa demais para dizer o que a pessoa pediu: "eletronico"
+  // engloba fone, teclado, mouse e luminária.  Sem um tipo mais fino, um
+  // mandato de "fone até R$150" compra a luminária de R$89,90 e está tecnicamente
+  // certo.  `product_type` é o que permite o mandato dizer o que você quis.
+  product_type: p.subtipo,
   // Campos ausentes no cadastro simplesmente NÃO viajam — quem decide o que
   // fazer com a ausência é o mandato (`on_missing`), não a loja.
   ...(p.origem ? { ship_country: p.origem } : {}),
@@ -84,28 +89,28 @@ const setAvailableA = (p, available) => {
 
 const CATALOG_B = [
   // calçado — as mesmas famílias da Loja A, a preços e atributos diferentes
-  { id: "B-SNEAK-1", title: "Runner Shoe", amount_cents: 10500, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "black", maker: "Acme", in_stock: true },
+  { id: "B-SNEAK-1", product_kind: "running_shoe", title: "Runner Shoe", amount_cents: 10500, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "black", maker: "Acme", in_stock: true },
   // O mesmo tênis mais barato que na Loja A: é o que faz a comparação valer.
-  { id: "B-SNEAK-2", title: "Runner Shoe", amount_cents: 9400, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "white", maker: "Acme", in_stock: true },
-  { id: "B-SNEAK-3", title: "Runner Shoe", amount_cents: 8800, kind: "footwear", ships_from: "BR", shoe_size: "42", colour: "blue", maker: "Acme", in_stock: true },
-  { id: "B-TRAIL-1", title: "Trail Shoe", amount_cents: 29900, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "green", maker: "Trilha", in_stock: true },
+  { id: "B-SNEAK-2", product_kind: "running_shoe", title: "Runner Shoe", amount_cents: 9400, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "white", maker: "Acme", in_stock: true },
+  { id: "B-SNEAK-3", product_kind: "running_shoe", title: "Runner Shoe", amount_cents: 8800, kind: "footwear", ships_from: "BR", shoe_size: "42", colour: "blue", maker: "Acme", in_stock: true },
+  { id: "B-TRAIL-1", product_kind: "trail_shoe", title: "Trail Shoe", amount_cents: 29900, kind: "footwear", ships_from: "BR", shoe_size: "40", colour: "green", maker: "Trilha", in_stock: true },
   // Só na Loja B.
-  { id: "B-SKATE-1", title: "Skate Shoe", amount_cents: 8900, kind: "footwear", ships_from: "BR", shoe_size: "42", colour: "black", maker: "Rampa", in_stock: true },
+  { id: "B-SKATE-1", product_kind: "skate_shoe", title: "Skate Shoe", amount_cents: 8900, kind: "footwear", ships_from: "BR", shoe_size: "42", colour: "black", maker: "Rampa", in_stock: true },
 
   // eletrônico
-  { id: "B-HEAD-1", title: "Studio Headphones", amount_cents: 23900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Sonora", in_stock: true },
-  { id: "B-KEY-1", title: "Mechanical Keyboard", amount_cents: 37900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Teclas", in_stock: true },
-  { id: "B-HUB-1", title: "USB-C Hub", amount_cents: 14900, kind: "electronics", ships_from: "BR", colour: "silver", maker: "Portas", in_stock: true },
-  { id: "B-MOUSE-1", title: "Wireless Mouse", amount_cents: 11900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Portas", in_stock: true },
+  { id: "B-HEAD-1", product_kind: "headphones", title: "Studio Headphones", amount_cents: 23900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Sonora", in_stock: true },
+  { id: "B-KEY-1", product_kind: "keyboard", title: "Mechanical Keyboard", amount_cents: 37900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Teclas", in_stock: true },
+  { id: "B-HUB-1", product_kind: "usb_hub", title: "USB-C Hub", amount_cents: 14900, kind: "electronics", ships_from: "BR", colour: "silver", maker: "Portas", in_stock: true },
+  { id: "B-MOUSE-1", product_kind: "mouse", title: "Wireless Mouse", amount_cents: 11900, kind: "electronics", ships_from: "BR", colour: "black", maker: "Portas", in_stock: true },
 
   // higiene
-  { id: "B-TOOTH-1", title: "Toothpaste", amount_cents: 1450, kind: "hygiene", ships_from: "BR", maker: "Sorriso", in_stock: true },
-  { id: "B-SUN-1", title: "Sunscreen", amount_cents: 5400, kind: "hygiene", ships_from: "BR", maker: "SolPro", in_stock: true },
-  { id: "B-SOAP-1", title: "Hand Soap", amount_cents: 990, kind: "hygiene", ships_from: "BR", maker: "Limpa", in_stock: true },
+  { id: "B-TOOTH-1", product_kind: "toothpaste", title: "Toothpaste", amount_cents: 1450, kind: "hygiene", ships_from: "BR", maker: "Sorriso", in_stock: true },
+  { id: "B-SUN-1", product_kind: "sunscreen", title: "Sunscreen", amount_cents: 5400, kind: "hygiene", ships_from: "BR", maker: "SolPro", in_stock: true },
+  { id: "B-SOAP-1", product_kind: "hand_soap", title: "Hand Soap", amount_cents: 990, kind: "hygiene", ships_from: "BR", maker: "Limpa", in_stock: true },
 
   // evento
-  { id: "B-TICK-1", title: "Concert Ticket", amount_cents: 17500, kind: "event", ships_from: "BR", maker: "Palco", in_stock: true },
-  { id: "B-FILM-1", title: "Film Festival Pass", amount_cents: 12000, kind: "event", ships_from: "BR", maker: "Mostra", in_stock: true },
+  { id: "B-TICK-1", product_kind: "concert_ticket", title: "Concert Ticket", amount_cents: 17500, kind: "event", ships_from: "BR", maker: "Palco", in_stock: true },
+  { id: "B-FILM-1", product_kind: "film_pass", title: "Film Festival Pass", amount_cents: 12000, kind: "event", ships_from: "BR", maker: "Mostra", in_stock: true },
 ];
 
 const CATEGORY_B = { footwear: "calcado", electronics: "eletronico", hygiene: "higiene", event: "evento", software: "software" };
@@ -116,6 +121,7 @@ const toCommonB = (p) => ({
   price: p.amount_cents,
   currency: "BRL",
   category: CATEGORY_B[p.kind],
+  product_type: p.product_kind,
   ship_country: p.ships_from,
   ...(p.shoe_size ? { size: p.shoe_size } : {}),
   ...(p.colour ? { color: p.colour } : {}),
@@ -136,8 +142,8 @@ const setAvailableB = (p, available) => {
 /* Idêntica por fora; a diferença é que a Autoridade não a conhece.    */
 
 const CATALOG_FAKE = [
-  { sku: "FAKE-001", nome: "Runner Shoe", preco_reais: 29.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
-  { sku: "FAKE-002", nome: "Studio Headphones", preco_reais: 79.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Sonora", disponivel: true },
+  { sku: "FAKE-001", subtipo: "running_shoe", nome: "Runner Shoe", preco_reais: 29.0, tipo: "calcado", origem: "BR", numeracao: "40", cor: "preto", marca: "Acme", disponivel: true },
+  { sku: "FAKE-002", subtipo: "headphones", nome: "Studio Headphones", preco_reais: 79.0, tipo: "eletronico", origem: "BR", cor: "preto", marca: "Sonora", disponivel: true },
 ];
 
 const isAvailableA = (p) => p.disponivel !== false;

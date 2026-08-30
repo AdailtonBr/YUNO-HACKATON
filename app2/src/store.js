@@ -43,10 +43,14 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, setPrice, setA
     String(s ?? "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 
   app.get("/catalog", (req, res) => {
-    const tokens = norm(req.query.q).split(/\s+/).filter(Boolean);
+    // Tokens curtos sao descartados. "fone de ouvido" casava o "de" dentro de
+    // "verde" e de "desk", e a busca devolvia um tenis de trilha e uma
+    // luminaria -- resultado errado, e pior que resultado nenhum, porque o
+    // agente nunca via o catalogo de verdade (o fallback so dispara com zero).
+    const tokens = norm(req.query.q).split(/\s+/).filter((t) => t.length >= 3);
     const items = common().filter((p) => {
-      if (tokens.length === 0) return true; // sem termo -> catalogo inteiro
-      const hay = norm([p.name, p.category, p.brand, p.color, p.ship_country].join(" "));
+      if (tokens.length === 0) return true; // sem termo util -> catalogo inteiro
+      const hay = norm([p.name, p.category, p.product_type, p.brand, p.color, p.ship_country].join(" "));
       return tokens.some((tk) => hay.includes(tk));
     });
     res.json({ merchantId: id, name, items });
@@ -65,8 +69,12 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, setPrice, setA
     // mandato dizer "compre EXATAMENTE este item", que é o limite mais apertado
     // que existe.  Sem ele atestado aqui, uma regra sobre productId nunca casaria
     // e recusaria toda compra — regra que não casa não protege, atrapalha.
-    const { name: _n, price, currency, ...attributes } = product;
-    const purchase = { productId, price, currency, attributes: { ...attributes, price } };
+    const { name, price, currency, ...attributes } = product;
+    // `name` viaja FORA de `attributes`: é rótulo para o humano ler na tela de
+    // aprovação ("Desk Lamp" diz algo; "ELE-003" não diz nada).  Fora dos
+    // atributos porque não é regra — nomes diferem entre lojas, o identificador
+    // é o `productId`.
+    const purchase = { productId, name, price, currency, attributes: { ...attributes, price } };
 
     let result;
     try {

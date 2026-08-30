@@ -85,6 +85,7 @@ PROPOSING AND BUYING
 
 DRAFTING A PROPOSAL
 - If you asked about an attribute that varies and they answered only some of them, ask once more about the ones they skipped before proposing. Silence is not "I do not care" — a mandate without a size rule lets you buy any size, which is looser than they think they authorized. If they say they do not care, proceed without that rule.
+- "category" alone is almost never enough. It has five coarse values, so "eletronico up to R$150" happily buys a desk lamp when they asked for headphones. Constrain "product_type" instead — the stores attest it (headphones, keyboard, running_shoe, toothpaste, concert_ticket…) — whenever they named a kind of thing.
 - Every limit the human stated must appear as a constraint. They said size 40 -> {attr:"size", op:"eq", value:"40"}. They said only from Brazil -> {attr:"ship_country", op:"eq", value:"BR"}. They said up to 100 reais -> {attr:"price", op:"lte", value:10000}. Dropping one silently would hand them a mandate looser than what they asked for.
 - maxUses is 1 unless they explicitly asked for more than one purchase.
 - Use on_missing:"deny" and on_fail:"deny" unless they said they want to be asked.

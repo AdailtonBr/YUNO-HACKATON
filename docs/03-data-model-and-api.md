@@ -11,7 +11,8 @@ A Autoridade não mantém um catálogo de atributos possíveis — o motor é ab
 | `productId` | string | o id do produto **naquela loja**. Atestado junto dos demais para que o mandato possa dizer *"compre exatamente este item"* — a regra mais apertada que existe. Como o id é por loja, um mandato assim compra ali e em lugar nenhum mais. |
 | `price` | number | em **centavos** (evita float) |
 | `currency` | string | ISO-4217 (`BRL`) |
-| `category` | string | taxonomia fixa da demo: `calcado`, `higiene`, `software`, `evento`, `eletronico` |
+| `category` | string | taxonomia grossa da demo: `calcado`, `higiene`, `software`, `evento`, `eletronico`. **Quase nunca basta sozinha num mandato** — ver `product_type` abaixo. |
+| `product_type` | string | o que a coisa **é**: `headphones`, `keyboard`, `desk_lamp`, `running_shoe`, `toothpaste`… Existe porque `category` é grossa: um mandato de *"eletrônico até R$150"* compra uma luminária de R$89,90 quando a pessoa pediu um fone — e está tecnicamente certo, porque o mandato nunca disse "fone". É o atributo que permite ao mandato dizer o que você quis. |
 | `ship_country` | string | ISO-3166 alpha-2 (`BR`, `CN`) |
 | `size` | string | específico de calçado |
 | `color` | string | específico |

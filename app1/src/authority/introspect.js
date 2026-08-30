@@ -122,6 +122,7 @@ export async function introspect(body, { merchantId }) {
         humanId: mandate.humanId,
         merchantId,
         productId: purchase.productId,
+        name: purchase.name ?? null,
         price: purchase.price, // congelado: o humano aprova um número
         currency: purchase.currency,
         attributes: purchase.attributes ?? {},

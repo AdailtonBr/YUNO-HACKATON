@@ -304,6 +304,71 @@ test("a loja ATESTA o productId, entao 'compre exatamente este item' funciona", 
   assert.equal(done[0].result.ok, true);
 });
 
+test("CATEGORIA E GROSSA DEMAIS: 'eletronico ate R$150' compra uma luminaria", async () => {
+  // O bug que motivou `product_type`. O mandato diz "eletronico ate R$150" e a
+  // Autoridade esta CERTA em aceitar a luminaria: ela cabe nas regras. O erro
+  // esta antes -- o mandato nao conseguiu dizer "fone".
+  const mandateId = await shoeMandate({
+    maxUses: 1,
+    constraints: [
+      { attr: "category", op: "eq", value: "eletronico", on_missing: "deny", on_fail: "deny" },
+      { attr: "price", op: "lte", value: 15000, on_missing: "deny", on_fail: "deny" },
+    ],
+  });
+  const deps = {
+    stores: [
+      { id: "store_a", url: storeServers[0].url },
+      { id: "store_b", url: storeServers[1].url },
+    ],
+    agentId: DEMO.agentId,
+    agentSecret: DEMO.agentSecret,
+  };
+  const done = await runTick(deps);
+  assert.equal(done[0].result.ok, true);
+  assert.equal(done[0].item.product_type, "desk_lamp"); // nao era o que se queria
+});
+
+test("product_type e o que faz o mandato dizer 'fone' — e a luminaria nao passa", async () => {
+  const mandateId = await shoeMandate({
+    maxUses: 1,
+    constraints: [
+      { attr: "product_type", op: "eq", value: "headphones", on_missing: "deny", on_fail: "deny" },
+      { attr: "price", op: "lte", value: 15000, on_missing: "deny", on_fail: "deny" },
+    ],
+  });
+  const deps = {
+    stores: [
+      { id: "store_a", url: storeServers[0].url },
+      { id: "store_b", url: storeServers[1].url },
+    ],
+    agentId: DEMO.agentId,
+    agentSecret: DEMO.agentSecret,
+  };
+
+  // Nenhum fone cabe em R$150 hoje (R$239 e R$249), entao nada e comprado --
+  // e, crucialmente, a luminaria de R$89,90 NAO e comprada no lugar.
+  assert.deepEqual(await runTick(deps), []);
+
+  const m = await Mandate.findById(mandateId).lean();
+  assert.equal(m.usedCount, 0);
+
+  // Baixe o preco do fone e ele compra o FONE.
+  await fetch(`${storeServers[1].url}/catalog/B-HEAD-1`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ price: 12900 }),
+  });
+  const done = await runTick(deps);
+  assert.equal(done[0].item.productId, "B-HEAD-1");
+  assert.equal(done[0].result.ok, true);
+
+  await fetch(`${storeServers[1].url}/catalog/B-HEAD-1`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ price: 23900 }),
+  });
+});
+
 test("a loja ve a propria verificacao", async () => {
   const mandateId = await shoeMandate();
   await shop(mandateId);
