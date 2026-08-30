@@ -41,10 +41,15 @@ Estas não são negociáveis. Qualquer implementação que as viole está errada
 - **Pagamento cartão + Pix mockados**; a topologia (Autoridade dispara o cofre) é real.
 - **Duas lojas com catálogos que se cruzam** (só na A, só na B, compartilhados) para exercitar o julgamento do agente.
 - **Anti-site-fake = allow-list de merchants autenticados** na Autoridade. Credenciadora externa ficou **fora de escopo**.
+- **Quantidade: `price` é o unitário, `total` é o teto de gasto.** `total` (`price × quantity`) é atributo atestado, e **é o teto de `total` que limita gasto** — `price lte 15000` sozinho deixaria vinte unidades saírem por R$3.000 sem violar regra nenhuma. Quantidade e total são **assinados no bilhete** e a Autoridade **refaz a conta**. **Mandato sem regra de `total` compra UMA unidade** (esquecer bloqueia); a Autoridade **não** migra mandato antigo copiando `price` para `total`. `maxUses` conta compras, não unidades. Ver D19.
 
 ## Ordem de implementação
 
 Siga `docs/07-build-plan.md`. Resumo: **fluxo feliz de ponta a ponta primeiro**, depois casos feios, depois bonus. Não comece pelos bonus.
+
+> **Todas as fases estão feitas (134 testes verdes).** A lista abaixo fica como registro da ordem em que
+> foi construído. O que falta **não é código**: slides, diagrama exportado e o Decision Log em formato de
+> entrega.
 
 1. Autoridade + motor de constraints (com testes unitários cedo).
 2. Cofre/PSP mock (cartão + Pix).

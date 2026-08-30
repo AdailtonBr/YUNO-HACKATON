@@ -172,7 +172,8 @@ Se o modelo inventar `material`, a proposta é recusada e ele recebe a lista de 
     properties: {
       mandateId:  { type: "string" },
       productId:  { type: "string" },
-      merchantId: { type: "string" }
+      merchantId: { type: "string" },
+      quantity:   { type: "integer", minimum: 1 }   // default 1
     },
     required: ["mandateId", "productId", "merchantId"]
   }
@@ -180,6 +181,10 @@ Se o modelo inventar `material`, a proposta é recusada e ele recebe a lista de 
 ```
 
 O corpo assina o `purchaseTicket` com o segredo do agente e chama `POST /buy` na loja. O resultado volta **sem reinterpretação**: o modelo relata, não julga.
+
+**`quantity` é opcional e cai em 1.** Vale reparar em como o erro do modelo é tratado aqui: quantidade inválida (`0`, `-3`, `1.5`) não vira erro nem arredonda para cima — vira **1**. O lado seguro é comprar de menos, e um deslize de tipo não deve conseguir virar um pedido maior do que o humano pediu.
+
+E mesmo com a quantidade certa, quem decide se ela é permitida é a Autoridade: um mandato que não tem regra sobre `total` autoriza **uma** unidade, e recusa o resto (D19). Como em todo o resto do projeto, a tool deixa o modelo *tentar*; o "não" vem de fora dele.
 
 ### A tool que NÃO existe: `create_mandate`
 
