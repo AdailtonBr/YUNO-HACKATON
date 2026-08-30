@@ -41,6 +41,10 @@ export const api = {
   tokenize: (rail, instrument, locale) =>
     req("POST", "/api/vault/tokenize", { body: { rail, instrument }, locale }),
 
+  // Disputa: "eu nunca autorizei isso" -> o trilho responde.
+  dispute: (auditId, reason, locale) =>
+    req("POST", "/api/disputes", { body: { auditId, reason }, locale }),
+
   // Propostas de mandato: o agente deposita, o humano confirma.
   proposals: (locale) => req("GET", "/api/proposals", { locale }),
   discardProposal: (id, locale) => req("POST", `/api/proposals/${id}/discard`, { locale }),

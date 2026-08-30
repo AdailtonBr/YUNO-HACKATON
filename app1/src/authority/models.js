@@ -133,6 +133,28 @@ const auditSchema = new Schema(
   opts
 );
 
+/**
+ * "Eu nunca autorizei isso."  A disputa em si é append-only como o resto: o
+ * veredito é gravado com a evidência que o sustentou, congelada no momento em
+ * que foi calculada.  Recalcular depois, sobre um trilho que cresceu, daria
+ * outra resposta — e uma resolução que muda sozinha não resolve nada.
+ */
+const disputeSchema = new Schema(
+  {
+    _id: String,
+    humanId: { type: String, required: true, index: true },
+    mandateId: { type: String, required: true },
+    auditId: { type: String, required: true }, // a compra contestada
+    reason: String,
+    verdict: { type: String, enum: ["authorized", "not_authorized", "nothing_charged"], required: true },
+    brokenLink: { type: String, default: null },
+    evidence: { type: Schema.Types.Mixed, default: [] },
+    charged: { type: Schema.Types.Mixed, default: null },
+    createdAt: { type: Date, default: Date.now },
+  },
+  opts
+);
+
 /** Resposta gravada por chave: repetir a chave devolve o MESMO resultado. */
 const idempotencySchema = new Schema(
   {
@@ -150,4 +172,5 @@ export const Approval = model("Approval", approvalSchema, "approvals");
 export const UsedNonce = model("UsedNonce", usedNonceSchema, "used_nonces");
 export const Proposal = model("Proposal", proposalSchema, "mandate_proposals");
 export const AuditLog = model("AuditLog", auditSchema, "audit_log");
+export const Dispute = model("Dispute", disputeSchema, "disputes");
 export const Idempotency = model("Idempotency", idempotencySchema, "idempotency");

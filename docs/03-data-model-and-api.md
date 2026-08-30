@@ -153,6 +153,37 @@ O agente **deposita** aqui; ele não escreve em `mandates`. Só a confirmação 
 
 `paymentMethodRef` **não** vem na proposta: o humano vincula o método na Trusted Surface, no momento da confirmação. O agente não escolhe com o que se paga.
 
+## Coleção `disputes` (Autoridade / "eu nunca autorizei isso")
+
+O veredito é **calculado do trilho**, nunca afirmado — e depois **congelado**, com a evidência que o sustentou. Recalcular meses depois, sobre um trilho que cresceu, daria outra resposta; uma resolução que muda sozinha não resolve nada.
+
+```js
+{
+  _id: "dsp_1a2b...",
+  humanId: "user_michael",
+  mandateId: "mnd_...",
+  auditId: "aud_...",              // a compra contestada
+  reason: "não reconheço esta compra",
+  verdict: "authorized",           // "authorized" | "not_authorized" | "nothing_charged"
+  brokenLink: null,                // qual elo faltou, quando falta algum
+  charged: { productId, price, currency, merchantId, receiptId, ts, agentId },
+  evidence: [ ... ],               // os cinco elos, com quem e quando
+  createdAt: ISODate("...")
+}
+```
+
+**Os cinco elos da cadeia de autorização.** Falte um, e o registro está do lado do titular:
+
+| Elo | O que prova | De onde sai |
+|---|---|---|
+| `mandate_created` | o humano autorizou aqueles limites, **antes** da compra | `audit_log`, ator humano |
+| `agent_identity` | quem comprou **provou** ser o agente do mandato | `agentIdAuthenticated`, derivado do bilhete assinado (D16) |
+| `rules_passed` | as regras foram avaliadas e passaram | `trace`, regra a regra |
+| `human_approval` | houve um sim para **aquela** compra | `approval_granted` casado por produto e preço (só se `mode: "aprovacao"`) |
+| `charged_what_was_verified` | o valor cobrado é o valor verificado | `payment_result` com o mesmo recibo e o mesmo valor |
+
+Repare que a ordem importa: um `mandate_created` **posterior** à compra não a legitima. É o tipo de coisa que só um trilho carimbado consegue distinguir.
+
 ## Catálogo das lojas (App 2 — cada loja tem o seu)
 
 Formato **interno** livre (o banco da loja é dela). Na fronteira, o **adaptador** traduz para o vocabulário comum:
@@ -236,7 +267,17 @@ GET  /mandates/:id                   # registro para o humano (o que foi autoriz
   -> { mode, humanReadable, status, revoked, usedCount, maxUses, ... }   # NÃO expõe paymentMethodRef cru
 
 GET  /audit?mandateId=...            # trilho completo (visão do auditor / base da disputa)
-  -> [ { ts, event, actor, decision, reason, receiptId, ... }, ... ]
+  -> [ { auditId, ts, event, actor, decision, reason, trace, receiptId, ... }, ... ]
+
+POST /disputes                       # o titular nega uma compra; o TRILHO responde
+  auth: sessão do humano; só o dono do mandato
+  body: { auditId, reason }
+  -> { disputeId, verdict, brokenLink, charged, evidence }
+  # o veredito sai do trilho daquele mandato, e é gravado junto com a evidência.
+  # A própria disputa vira um evento `dispute_resolved` no trilho.
+
+GET  /disputes                       # o que o titular já contestou, e como terminou
+  -> [ { disputeId, verdict, brokenLink, charged, evidence, createdAt }, ... ]
 
 POST /proposals                      # o AGENTE deposita um rascunho de mandato (não cria mandato)
   auth: credencial do agente

@@ -9,9 +9,10 @@
 
 import express from "express";
 import crypto from "node:crypto";
-import { Mandate, Merchant, Agent, Approval, Proposal, AuditLog } from "./models.js";
+import { Mandate, Merchant, Agent, Approval, Proposal, AuditLog, Dispute } from "./models.js";
 import { mandateStatus } from "./engine.js";
 import { introspect } from "./introspect.js";
+import { resolveDispute } from "./dispute.js";
 import { opaqueId } from "./ticket.js";
 import { tokenize } from "./vault.js";
 import { humanReadable, reasonText } from "../shared/messages.js";
@@ -268,6 +269,49 @@ export function buildRouter() {
   r.post("/approvals/:id/approve", requireHuman, decide("approved", "approval_granted"));
   r.post("/approvals/:id/reject", requireHuman, decide("rejected", "approval_rejected"));
 
+  /* --- Disputa: "eu nunca autorizei isso" --------------------------- */
+
+  r.post("/disputes", requireHuman, async (req, res) => {
+    const { auditId, reason } = req.body ?? {};
+    const disputed = await AuditLog.findById(auditId).lean();
+    if (!disputed) return res.status(404).json({ error: "unknown_audit_entry" });
+
+    const mandate = await Mandate.findById(disputed.mandateId).lean();
+    // Só o titular contesta uma compra do próprio mandato.
+    if (!mandate || mandate.humanId !== req.humanId) return res.status(403).json({ error: "not_your_mandate" });
+
+    // O trilho INTEIRO daquele mandato, em ordem: é dele que o veredito sai.
+    const trail = await AuditLog.find({ mandateId: disputed.mandateId }).sort({ ts: 1 }).lean();
+    const resolution = resolveDispute(disputed, trail, mandate);
+
+    const dispute = await Dispute.create({
+      _id: opaqueId("dsp"),
+      humanId: req.humanId,
+      mandateId: disputed.mandateId,
+      auditId,
+      reason,
+      ...resolution,
+    });
+
+    // A própria disputa entra no trilho.  Contestar é um ato, e atos ficam.
+    await audit({
+      event: "dispute_resolved",
+      actor: { type: "human", id: req.humanId },
+      mandateId: disputed.mandateId,
+      merchantId: disputed.merchantId,
+      purchase: disputed.purchase,
+      decision: resolution.verdict === "authorized" ? "valido" : "recusado",
+      reason: { code: `dispute_${resolution.verdict}`, params: { brokenLink: resolution.brokenLink } },
+    });
+
+    res.status(201).json({ disputeId: dispute._id, ...resolution });
+  });
+
+  r.get("/disputes", requireHuman, async (req, res) => {
+    const list = await Dispute.find({ humanId: req.humanId }).sort({ createdAt: -1 }).lean();
+    res.json(list.map((d) => ({ disputeId: d._id, ...d, _id: undefined })));
+  });
+
   /* --- Trilho auditável -------------------------------------------- */
 
   r.get("/audit", async (req, res) => {
@@ -275,6 +319,7 @@ export function buildRouter() {
     const list = await AuditLog.find(q).sort({ ts: 1 }).limit(500).lean();
     res.json(
       list.map((e) => ({
+        auditId: e._id,
         ts: e.ts,
         event: e.event,
         actor: e.actor,

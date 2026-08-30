@@ -11,7 +11,7 @@
 | **Expirado** | `evaluate` → `expiresAt < now` | Checagem viva no servidor. |
 | **Revogado ao vivo** | `evaluate` → `revoked === true` | **É o teste da prova de fogo.** Trivial na abordagem B: o humano seta a flag, a próxima introspecção lê. |
 | **Agente impostor** | verificação do `purchaseTicket` → `evaluate` → `ticket.agentId !== mandate.agentId` | **Cuidado:** comparar dois campos NÃO impede impostor se o `agentId` vem do corpo — inclusive do corpo *da loja*. O `agentId` que vale é o **derivado do bilhete assinado pelo agente**, verificado pela própria Autoridade. Identidade se prova, não se declara nem se repassa. |
-| **Disputa** | `audit_log` append-only | O humano nega; o trilho auditável resolve. Prova centralizada (log carimbado). |
+| **Disputa** | `audit_log` append-only → `resolveDispute` | O humano nega; o trilho responde. A resolução **reconstitui a cadeia**: ele autorizou aqueles limites antes da compra? quem comprou provou ser o agente dele? as regras passaram? se o mandato exigia, houve o sim específico? o cobrado é o verificado? Falte um elo e o estorno se justifica; estejam todos, e o titular vê exatamente por quê. O veredito é **calculado**, não afirmado — e congelado com a evidência. Ver `docs/03`. |
 
 Bifurcação recusar-vs-escalar (não aprovar em silêncio):
 
