@@ -255,6 +255,23 @@ async function executeTool(name, args, ctx) {
 
 Repare no que o `executeTool` **não** tem: nenhum ramo que escreva estado de mandato, nenhum acesso ao Mongo da Autoridade, nenhuma leitura de `paymentMethodRef`. O módulo do agente fala **só HTTP** — a fronteira do `docs/02` não é disciplina de quem escreve, é o que o arquivo consegue alcançar.
 
+## Onde o contexto volátil entra na conversa
+
+Uma coisa que parece detalhe de implementação e é, na verdade, uma classe inteira de bug.
+
+O modelo recebe três coisas que **mudam entre turnos**: a data de hoje, o estado do mandato, e a carteira do humano. A tentação é injetá-las no topo, junto do prompt de sistema. Foi o que fizemos, e deu errado de dois jeitos:
+
+- o humano cadastrou uma chave Pix no meio da conversa, e o agente continuou dizendo que só havia cartão. A carteira tinha chegado até ele como **resultado de tool**, gravado no histórico num turno em que só existia o cartão — e o histórico vem **depois** do topo, então soava mais recente que qualquer aviso lá em cima;
+- o mesmo risco valia para o mandato: um aviso "revogado" no topo competindo com uma compra bem-sucedida no meio do histórico.
+
+A regra que adotamos: **o que é verdade agora é a última coisa que o modelo lê.** O bloco volátil fica imediatamente antes da mensagem nova do humano, não no topo. E ele não é guardado no histórico — senão os blocos se acumulariam, cada um afirmando a verdade de uma época diferente.
+
+Os retratos velhos de `list_wallet` no histórico são **esvaziados**, não removidos: apagá-los deixaria a mensagem do assistente pedindo uma tool sem a resposta correspondente, o que a API recusa no turno seguinte.
+
+> **A guarda que não deu certo.** Tentamos forçar em código que o agente consultasse a carteira antes de propor, com um sinalizador `seen.wallet`. Ele vivia **um turno**, mas a decisão que ele protegia atravessa turnos: o agente pergunta no turno N e propõe no N+1, quando o sinalizador já nasceu falso de novo. O resultado foi um laço infinito — a proposta era recusada, o agente relatava "houve um problema técnico" e perguntava outra vez.
+>
+> A lição é a mesma da idempotência que guardava `escalate`: **uma trava correta em intenção, colocada num ponto onde a espera pelo humano acontece, vira um bloqueio.** O certo aqui não era travar, era entregar o estado fresco — o que o agente não pode deixar de ver, ele não precisa ser obrigado a buscar.
+
 ## As duas fases do agente
 
 **Fase 1 — conversa, com o humano presente.**

@@ -18,6 +18,12 @@ export default function App() {
   const [approvals, setApprovals] = useState([]);
   const [trail, setTrail] = useState([]);
   const [methods, setMethods] = useState([]);
+  // A conversa vive AQUI, não dentro do AgentChat: trocar de aba desmonta a
+  // tela, e com o estado lá dentro a conversa ia junto.  Sobe um nível e ela
+  // sobrevive à navegação.  (Um reload ainda a perde — o histórico que o
+  // agente usa também vive em memória no servidor, então persistir só a
+  // metade visível criaria uma conversa que você lê e ele não lembra.)
+  const [chatLog, setChatLog] = useState([]);
   const [addresses, setAddresses] = useState([]);
   const [revoking, setRevoking] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -101,6 +107,8 @@ export default function App() {
             locale={locale}
             mandate={focused}
             whileAway={whileAway}
+            log={chatLog}
+            setLog={setChatLog}
             reload={reload}
             goToProposals={() => setTab("proposals")}
           />

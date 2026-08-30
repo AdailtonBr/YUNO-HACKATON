@@ -66,6 +66,7 @@ const SYSTEM = `You are a purchasing agent acting for a human. You speak their l
 
 WHAT YOU DO
 1. When they ask for something, call search_catalog FIRST, with an EMPTY query.  Then pick the products that actually match and call it AGAIN with their productIds — the attribute profile only comes back for candidates you chose, and only there does "varies" mean anything.
+1a. Be strict about what counts as a candidate: only products that ARE the thing they asked for. A hand soap is not a toothpaste, and a trail shoe is not a running shoe. Sweeping in near-misses makes attributes look like they vary when they do not, and you end up asking about a difference the human never cared about.
 1b. Ask ONLY about attributes the profile says vary among those candidates. If every candidate is the same brand, brand is not a question — asking it wastes their time and makes you look like you did not look. The catalogs are small, so listing everything is cheap, and the store matches strings literally — it will not understand "tenis de corrida" or "running shoe". You are the one who maps what they want onto what is actually there. Only use a keyword to narrow down afterwards.
 2. Look at the attribute profile the tool returns. For any attribute where "varies" is true among the candidates, that difference is a decision only the human can make — ask them about it. Do not ask about attributes that do not vary; that wastes their time.
 3. Ask whether they want you to buy on your own within the limits, or to ask them before each payment. Never assume.
@@ -202,10 +203,66 @@ const TOOLS = [
  * Colapsa só a repetição exata; texto legítimo não é tocado.
  */
 function dedupe(text) {
-  const t = text.trim();
-  if (t.length < 40 || t.length % 2 !== 0) return text;
-  const half = t.length / 2;
-  return t.slice(0, half).trim() === t.slice(half).trim() ? t.slice(0, half).trim() : text;
+  // Primeiro a forma comum: o mesmo parágrafo repetido.  A versão anterior só
+  // olhava `X + X` colado e exigia comprimento par — com uma quebra de linha no
+  // meio o total fica ímpar, e ela desistia antes de comparar.  Era por isso
+  // que a duplicata em dois parágrafos passava direto.
+  const blocks = [];
+  for (const raw of String(text).split(/\n+/)) {
+    const b = raw.trim();
+    if (!b) continue;
+    const prev = blocks[blocks.length - 1];
+    if (prev === b && b.length >= 40) continue; // repetição exata e longa: descarta
+    blocks.push(b);
+  }
+  const joined = blocks.join("\n\n");
+
+  // E a forma colada, sem separador nenhum.
+  if (joined.length >= 40 && joined.length % 2 === 0) {
+    const half = joined.length / 2;
+    if (joined.slice(0, half).trim() === joined.slice(half).trim()) return joined.slice(0, half).trim();
+  }
+  return joined;
+}
+
+/** A carteira como está AGORA — rótulos e ids, nunca o número nem a rua. */
+async function currentWallet(deps) {
+  const headers = { "x-human-id": deps.humanId };
+  const get = (path) =>
+    fetch(`${deps.authorityUrl}${path}`, { headers })
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+  const [payment_methods, addresses] = await Promise.all([
+    get("/wallet/methods"),
+    get("/wallet/addresses"),
+  ]);
+  return { payment_methods, addresses };
+}
+
+/**
+ * O histórico guardado para o próximo turno.
+ *
+ * Sai o bloco volátil deste turno (senão eles se acumulariam, cada um afirmando
+ * uma verdade de uma época diferente).  E os resultados antigos de
+ * `list_wallet` são **esvaziados** em vez de removidos: apagá-los deixaria a
+ * mensagem do assistente pedindo uma tool sem resposta, o que a API recusa no
+ * turno seguinte.  Esvaziar mantém a estrutura válida e tira o dado velho de
+ * circulação.
+ */
+function keptHistory(messages, head, volatile) {
+  const walletCalls = new Set();
+  for (const m of messages) {
+    for (const c of m.tool_calls ?? []) {
+      if (c.function?.name === "list_wallet") walletCalls.add(c.id);
+    }
+  }
+  return messages.slice(head.length).flatMap((m) => {
+    if (m === volatile) return [];
+    if (m.role === "tool" && walletCalls.has(m.tool_call_id)) {
+      return [{ ...m, content: JSON.stringify({ stale: true, note: "see the current wallet in the latest system message" }) }];
+    }
+    return [m];
+  });
 }
 
 async function callOpenAI(messages) {
@@ -230,31 +287,44 @@ async function callOpenAI(messages) {
 export async function runTurn({ history, message, mandate, deps }) {
   if (!apiKey()) throw new Error("missing_openai_key");
 
-  const messages = [
-    { role: "system", content: SYSTEM },
-    // Sem isto o modelo chuta a data e propõe um mandato que já nasce expirado.
-    {
-      role: "system",
-      content: `Today is ${new Date().toISOString().slice(0, 10)}. Any expiresAt you propose must be after today.`,
-    },
-    ...(mandate
-      ? [{
-          role: "system",
-          content:
-            `The human has a mandate: mandateId=${mandate.mandateId}, rules=${JSON.stringify(mandate.constraints)}, ` +
-            `mode=${mandate.mode}, purchases used=${mandate.usedCount}/${mandate.maxUses}. ` +
-            `Do not try to judge whether it is still valid — it may have been revoked or expired since. ` +
-            `Attempt the purchase and report whatever the Authority answers.`,
-        }]
-      : [{ role: "system", content: "The human has no authorized mandate yet. You cannot buy; you can search and propose." }]),
-    ...history,
-    { role: "user", content: message },
-  ];
+  /**
+   * O contexto VOLÁTIL — o que é verdade agora, e que muda entre turnos.
+   *
+   * Ele fica **logo antes da mensagem nova**, não no topo.  A diferença não é
+   * estética: no topo ele competia com o histórico, que vem depois e portanto
+   * soa mais recente.  Um resultado de `list_wallet` de dois turnos atrás
+   * dizendo "só um cartão" ganhava do aviso fresco lá em cima — foi exatamente
+   * assim que o agente não viu o Pix recém-cadastrado.  O mesmo risco valia
+   * para o mandato: "revogado" no topo perdendo para uma compra bem-sucedida
+   * no meio do histórico.
+   *
+   * A regra, agora: o que é verdade agora é a última coisa que o modelo lê.
+   */
+  const wallet = await currentWallet(deps);
+
+  const volatile = {
+    role: "system",
+    content: [
+      `Today is ${new Date().toISOString().slice(0, 10)}. Any expiresAt you propose must be after today.`,
+      mandate
+        ? `The human has a mandate: mandateId=${mandate.mandateId}, rules=${JSON.stringify(mandate.constraints)}, ` +
+          `mode=${mandate.mode}, purchases used=${mandate.usedCount}/${mandate.maxUses}. ` +
+          `Do not try to judge whether it is still valid — it may have been revoked or expired since. ` +
+          `Attempt the purchase and report whatever the Authority answers.`
+        : "The human has no authorized mandate yet. You cannot buy; you can search and propose.",
+      // A carteira vinha só como resultado de tool no histórico, e envelhecia
+      // ali.  Agora é estado, entregue fresco a cada turno.
+      `WALLET RIGHT NOW (this supersedes anything older in the conversation) — ` +
+        `payment methods: ${JSON.stringify(wallet.payment_methods)}; addresses: ${JSON.stringify(wallet.addresses)}.`,
+    ].join("\n\n"),
+  };
+
+  const head = [{ role: "system", content: SYSTEM }];
+  const messages = [...head, ...history, volatile, { role: "user", content: message }];
 
   const events = [];
   let lastCatalog = [];   // tudo o que a loja expôs — âncora dos NOMES de atributo
   let lastCandidates = []; // o que o modelo escolheu — âncora do que VARIA
-  const seen = { wallet: false }; // o que ele de fato consultou neste turno
 
   // No máximo 6 voltas: o suficiente para buscar, propor e comprar, e curto o
   // bastante para um loop maluco não virar uma conta de API.
@@ -266,7 +336,7 @@ export async function runTurn({ history, message, mandate, deps }) {
 
     const calls = choice.tool_calls ?? [];
     if (calls.length === 0) {
-      return { text: dedupe(choice.content ?? ""), events, history: messages.slice(3) };
+      return { text: dedupe(choice.content ?? ""), events, history: keptHistory(messages, head, volatile) };
     }
 
     for (const call of calls) {
@@ -274,7 +344,7 @@ export async function runTurn({ history, message, mandate, deps }) {
       try {
         args = JSON.parse(call.function.arguments || "{}");
       } catch {}
-      const result = await runTool(call.function.name, args, { deps, mandate, lastCatalog, lastCandidates, events, seen });
+      const result = await runTool(call.function.name, args, { deps, mandate, lastCatalog, lastCandidates, events });
       if (call.function.name === "search_catalog") {
         lastCatalog = result.__items ?? lastCatalog;
         if (result.__candidates) lastCandidates = result.__candidates;
@@ -285,7 +355,7 @@ export async function runTurn({ history, message, mandate, deps }) {
     }
   }
 
-  return { text: "", events, history: messages.slice(3) };
+  return { text: "", events, history: keptHistory(messages, head, volatile) };
 }
 
 /** Aceita o id (`store_a`) ou o nome exibido (`Store A`), sem caixa. */
@@ -294,7 +364,7 @@ const findStore = (stores, ref) => {
   return stores.find((st) => st.id.toLowerCase() === want);
 };
 
-async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates, events, seen }) {
+async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates, events }) {
   if (name === "search_catalog") {
     let items = await searchCatalogs(deps.stores, args.query ?? "");
 
@@ -354,7 +424,6 @@ async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates,
   }
 
   if (name === "list_wallet") {
-    seen.wallet = true;
     const [methods, addresses] = await Promise.all([
       fetch(`${deps.authorityUrl}/wallet/methods`, { headers: { "x-human-id": deps.humanId } }).then((r) => r.json()),
       fetch(`${deps.authorityUrl}/wallet/addresses`, { headers: { "x-human-id": deps.humanId } }).then((r) => r.json()),
@@ -387,18 +456,6 @@ async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates,
       return { ok: false, error: "missing_payment_method", hint: "call list_wallet and ask the human which one" };
     }
 
-    // Não dá para escolher entre opções que nunca se olhou.  A garantia é
-    // fraca — ela força o agente a consultar, não a perguntar — mas é a que
-    // cabe em código: "ele perguntou?" não é algo que a tool consiga ver.
-    // Quem fecha o resto é a Trusted Surface, que mostra "Paga com" e
-    // "Entrega" antes do sim, para o humano pegar uma escolha que não fez.
-    if (!seen.wallet) {
-      return {
-        ok: false,
-        error: "wallet_not_consulted",
-        hint: "call list_wallet first, then ask the human which method and which address",
-      };
-    }
     if (args.requiresDelivery && !args.shippingAddressId) {
       return { ok: false, error: "missing_address", hint: "call list_wallet and ask the human which address" };
     }

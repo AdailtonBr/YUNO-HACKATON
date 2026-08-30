@@ -106,9 +106,8 @@ function ProposalDrafted({ locale, goToProposals }) {
   );
 }
 
-export default function AgentChat({ locale, mandate, whileAway = [], reload, goToProposals }) {
+export default function AgentChat({ locale, mandate, whileAway = [], log, setLog, reload, goToProposals }) {
   const T = (k) => t(locale, k);
-  const [log, setLog] = useState([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
