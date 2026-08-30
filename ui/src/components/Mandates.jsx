@@ -32,7 +32,9 @@ export default function Mandates({ locale, mandates, selectedId, onSelect, reloa
         </Panel>
       ) : (
         <div className="space-y-5">
-          {mandates.map((m) => (
+          {[...mandates]
+            .sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1))
+            .map((m) => (
             <Panel
               key={m.mandateId}
               tone={m.status === "active" ? undefined : "mute"}
@@ -112,7 +114,7 @@ export default function Mandates({ locale, mandates, selectedId, onSelect, reloa
                 </div>
               </footer>
             </Panel>
-          ))}
+            ))}
         </div>
       )}
     </>

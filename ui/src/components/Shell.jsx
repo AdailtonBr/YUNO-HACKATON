@@ -23,6 +23,7 @@ export default function Shell({
   setTab,
   mandate,
   mandates = [],
+  usable = [],
   onSelectMandate,
   counts = {},
   onRevoke,
@@ -30,6 +31,10 @@ export default function Shell({
 }) {
   const T = (k) => t(locale, k);
   const status = mandate?.status ?? "none";
+  const offered =
+    mandate && !usable.some((m) => m.mandateId === mandate.mandateId)
+      ? [mandate, ...usable]
+      : usable;
   const tone = status === "active" ? "allow" : status === "none" ? "mute" : "deny";
 
   return (
@@ -45,7 +50,9 @@ export default function Shell({
 
           {/* Com mais de um mandato o chip vira seletor: qual deles o agente
               usa é escolha da humana, não do primeiro da lista. */}
-          {mandates.length > 1 ? (
+          {/* Só mandatos vivos são oferecidos.  O selecionado entra mesmo morto,
+              para não sumir debaixo da mão de quem está olhando para ele. */}
+          {offered.length > 1 ? (
             <label className="flex items-center gap-2">
               <span className={`h-1.5 w-1.5 rounded-full ${TONE[tone].dot}`} />
               <select
@@ -54,7 +61,7 @@ export default function Shell({
                 className="max-w-[280px] truncate rounded border border-stone-300 bg-white px-2 py-1 font-mono text-[11.5px] text-stone-800 outline-none focus:border-stone-800"
                 title={T("topbar.pick")}
               >
-                {mandates.map((m) => (
+                {offered.map((m) => (
                   <option key={m.mandateId} value={m.mandateId}>
                     {T(`status.${m.status}`)} · {m.humanReadable?.slice(0, 46) ?? m.mandateId}
                   </option>

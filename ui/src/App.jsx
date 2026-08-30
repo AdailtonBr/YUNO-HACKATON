@@ -42,14 +42,20 @@ export default function App() {
     reload();
   }, [reload]);
 
-  // O mandato em foco é ESCOLHIDO, não deduzido.  Antes a UI elegia o primeiro
-  // ativo e passava só ele ao agente — com dois mandatos ativos, o segundo era
-  // invisível.  O fallback continua para quem tem um só.
+  /**
+   * O mandato em foco.
+   *
+   * A escolha EXPLÍCITA vence, mesmo se o mandato já morreu: você acabou de
+   * revogar e quer ver o agente tentar assim mesmo e ser recusado — tirá-lo da
+   * frente esconderia justamente a cena que importa.
+   *
+   * Mas a escolha AUTOMÁTICA só recai sobre um mandato vivo.  Antes o fallback
+   * era `mandates[0]`, então um mandato já cumprido continuava no topo como se
+   * ainda valesse.  Cumprido é `exhausted`, e esgotado não é oferecido.
+   */
+  const usable = mandates.filter((m) => m.status === "active");
   const focused =
-    mandates.find((m) => m.mandateId === selectedId) ??
-    mandates.find((m) => m.status === "active") ??
-    mandates[0] ??
-    null;
+    mandates.find((m) => m.mandateId === selectedId) ?? usable[0] ?? null;
 
   // Compras que o vigia fez sozinho: a `idempotencyKey` com prefixo `watch:` é
   // o que as distingue das compras feitas na conversa.  Sem endpoint novo — o
@@ -72,6 +78,7 @@ export default function App() {
         setTab={setTab}
         mandate={focused}
         mandates={mandates}
+        usable={usable}
         onSelectMandate={setSelectedId}
         counts={{ proposals: proposals.length, approvals: approvals.length }}
         onRevoke={() => focused && setRevoking(focused)}
@@ -116,6 +123,9 @@ export default function App() {
           onClose={() => setRevoking(null)}
           onConfirm={async () => {
             await api.revoke(revoking.mandateId, locale);
+            // Fica selecionado de propósito: a próxima tentativa do agente tem
+            // que ser sob ESTE mandato, para a recusa da Autoridade aparecer.
+            setSelectedId(revoking.mandateId);
             await reload();
           }}
         />
