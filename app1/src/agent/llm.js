@@ -87,6 +87,7 @@ DRAFTING A PROPOSAL
 - If you asked about an attribute that varies and they answered only some of them, ask once more about the ones they skipped before proposing. Silence is not "I do not care" — a mandate without a size rule lets you buy any size, which is looser than they think they authorized. If they say they do not care, proceed without that rule.
 - "category" alone is almost never enough. It has five coarse values, so "eletronico up to R$150" happily buys a desk lamp when they asked for headphones. Constrain "product_type" instead — the stores attest it (headphones, keyboard, running_shoe, toothpaste, concert_ticket…) — whenever they named a kind of thing.
 - Every limit the human stated must appear as a constraint. They said size 40 -> {attr:"size", op:"eq", value:"40"}. They said only from Brazil -> {attr:"ship_country", op:"eq", value:"BR"}. They said up to 100 reais -> {attr:"price", op:"lte", value:10000}. Dropping one silently would hand them a mandate looser than what they asked for.
+- QUANTITY. "price" is the price of ONE unit; "total" is what leaves the account. A mandate with no "total" rule buys ONE unit and the Authority refuses more, so if they want several, the money limit MUST be a "total" rule. Two shoes up to 300 reais in all -> {attr:"total", op:"lte", value:30000}. If they name a per-unit limit as well, write both. If they ask for more than one and never said a total, ask them for it — do not invent it, and do not silently propose a single unit.
 - maxUses is 1 unless they explicitly asked for more than one purchase.
 - Use on_missing:"deny" and on_fail:"deny" unless they said they want to be asked.
 
@@ -209,6 +210,12 @@ const TOOLS = [
           mandateId: { type: "string" },
           productId: { type: "string" },
           merchantId: { type: "string" },
+          quantity: {
+            type: "integer",
+            minimum: 1,
+            description:
+              "How many units. Defaults to 1. Buying more than one requires the mandate to cap the total; the Authority refuses otherwise.",
+          },
         },
         required: ["mandateId", "productId", "merchantId"],
       },
@@ -489,7 +496,10 @@ async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates,
     // sempre e trivialmente — perguntar seria absurdo), mas é regra legítima e
     // a mais apertada de todas: "compre exatamente este item".  `price` idem,
     // por outro motivo: ele é sempre comparável, mesmo quando não varia.
-    const ALWAYS_CONSTRAINABLE = ["price", "productId"];
+    // `total` e `quantity` não são atributos de catálogo — a loja os atesta a
+// partir da compra, não do produto — mas são constrangíveis, e `total` é o
+// único teto de dinheiro que limita o gasto de verdade.
+const ALWAYS_CONSTRAINABLE = ["price", "productId", "total", "quantity"];
     const known = new Set([...Object.keys(attributeProfile(universe)), ...ALWAYS_CONSTRAINABLE]);
     const unknown = (args.constraints ?? []).map((c) => c.attr).filter((a) => !known.has(a));
     if (unknown.length) {
@@ -635,13 +645,19 @@ async function runTool(name, args, { deps, mandate, lastCatalog, lastCandidates,
       };
     }
 
+    // Quantidade inválida vira 1 em vez de erro: o lado seguro é comprar de
+    // menos, e o modelo não deve conseguir transformar um deslize de tipo num
+    // pedido maior do que o humano pediu.
+    const quantity = Number.isInteger(args.quantity) && args.quantity >= 1 ? args.quantity : 1;
+
     const result = await attemptPurchase({
       mandateId: args.mandateId ?? mandate.mandateId,
       item,
+      quantity,
       agentId: deps.agentId,
       agentSecret: deps.agentSecret,
     });
-    events.push({ type: "purchase", item, result });
+    events.push({ type: "purchase", item, quantity, result });
     // Devolvido literalmente: o modelo relata, não reinterpreta.
     return result;
   }

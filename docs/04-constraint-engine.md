@@ -200,3 +200,21 @@ O **motor** é burro e determinístico de propósito. A **inteligência de saber
 5. Deposita a proposta na Trusted Surface para o humano confirmar.
 
 Regra defensável para a banca: *"o agente pergunta sobre um atributo porque ele varia no catálogo real, não porque um modelo achou que devia"* — ancorado em dado, auditável, com a fluência do LLM só por cima.
+
+---
+
+## O portão da quantidade
+
+Antes das constraints, o motor faz uma pergunta que nenhuma regra do humano cobriria: **este mandato sabe limitar o gasto?**
+
+```js
+if (quantity > 1 && !mandate.constraints.some((c) => c.attr === "total")) {
+  return deny("quantity_uncapped", { quantity });
+}
+```
+
+`price` é o preço de **uma** unidade. Um mandato que só limita `price` não limita gasto nenhum assim que a quantidade passa de um: vinte unidades dentro do teto unitário são vinte vezes o teto saindo da conta. Como não dá para adivinhar qual dos dois o humano quis, o motor recusa a quantidade em vez de escolher por ele — e a recusa diz o que fazer (*"crie um mandato com teto de total"*).
+
+O motor também **refaz a conta** (`total == price × quantity`) e compara os dois números com o que o agente assinou. O total é o que sai da conta: ele não pode ser afirmado por ninguém, tem que ser derivável do que foi atestado.
+
+Ver **D19** em `docs/06-decision-log.md`.

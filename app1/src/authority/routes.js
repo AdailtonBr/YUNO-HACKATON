@@ -9,7 +9,7 @@
 
 import express from "express";
 import crypto from "node:crypto";
-import { Mandate, Merchant, Agent, Approval, Proposal, AuditLog, Dispute, PaymentMethod, Address } from "./models.js";
+import { Mandate, Merchant, Agent, Approval, Proposal, AuditLog, Dispute, PaymentMethod, Address, nextAuditSeq } from "./models.js";
 import { mandateStatus } from "./engine.js";
 import { introspect } from "./introspect.js";
 import { resolveDispute } from "./dispute.js";
@@ -61,7 +61,7 @@ export function buildRouter() {
   const r = express.Router();
   const locale = (req) => req.get("accept-language")?.startsWith("pt") ? "pt-BR" : "en";
 
-  const audit = (entry) => AuditLog.create({ _id: opaqueId("aud"), ...entry });
+  const audit = (entry) => AuditLog.create({ _id: opaqueId("aud"), seq: nextAuditSeq(), ...entry });
 
   /* --- Trusted Surface: o humano cria o mandato -------------------- */
 
@@ -277,7 +277,10 @@ export function buildRouter() {
           : null,
         merchantId: a.merchantId,
         productId: a.productId,
-        price: a.price,
+        price: a.price, // unitário
+        quantity: a.quantity ?? 1,
+        // O que de fato sai da conta se ele disser sim.
+        total: a.total ?? a.price,
         currency: a.currency,
         attributes: a.attributes,
         origin: a.origin,
@@ -321,7 +324,7 @@ export function buildRouter() {
     if (!mandate || mandate.humanId !== req.humanId) return res.status(403).json({ error: "not_your_mandate" });
 
     // O trilho INTEIRO daquele mandato, em ordem: é dele que o veredito sai.
-    const trail = await AuditLog.find({ mandateId: disputed.mandateId }).sort({ ts: 1 }).lean();
+    const trail = await AuditLog.find({ mandateId: disputed.mandateId }).sort({ ts: 1, seq: 1 }).lean();
     const resolution = resolveDispute(disputed, trail, mandate);
 
     const dispute = await Dispute.create({
@@ -359,7 +362,7 @@ export function buildRouter() {
     // Mais RECENTES primeiro.  Era `ts: 1` com limite de 500, ou seja: os 500
     // eventos mais ANTIGOS.  Com o trilho crescendo, a tela mostraria o começo
     // da história e esconderia justamente o que acabou de acontecer.
-    const list = await AuditLog.find(q).sort({ ts: -1 }).limit(500).lean();
+    const list = await AuditLog.find(q).sort({ ts: -1, seq: -1 }).limit(500).lean();
     res.json(
       list.map((e) => ({
         auditId: e._id,

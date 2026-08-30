@@ -91,9 +91,8 @@ export default function App() {
   /**
    * O mandato em foco.
    *
-   * A escolha EXPLÍCITA vence, mesmo se o mandato já morreu: você acabou de
-   * revogar e quer ver o agente tentar assim mesmo e ser recusado — tirá-lo da
-   * frente esconderia justamente a cena que importa.
+   * A escolha EXPLÍCITA vence, mesmo se o mandato já morreu: apontar de
+   * propósito para um mandato revogado é como se vê a Autoridade recusar.
    *
    * Mas a escolha AUTOMÁTICA só recai sobre um mandato vivo.  Antes o fallback
    * era `mandates[0]`, então um mandato já cumprido continuava no topo como se
@@ -102,6 +101,33 @@ export default function App() {
   const usable = mandates.filter((m) => m.status === "active");
   const focused =
     mandates.find((m) => m.mandateId === selectedId) ?? usable[0] ?? null;
+
+  /**
+   * Um mandato que MORRE solta o foco.
+   *
+   * Antes, revogar fixava o mandato revogado no header de propósito, para a
+   * cena da revogação ao vivo aparecer.  Só que o foco não expira junto com a
+   * intenção: o próximo pedido — outra coisa, sem relação — saía sob o mandato
+   * morto e batia numa recusa que não dizia respeito a ele.  O humano lia isso
+   * como o app quebrado, e com razão.
+   *
+   * O que distingue os dois casos é a TRANSIÇÃO, não o estado.  Vivo → morto é
+   * uma sobra e o foco é solto.  Escolher um que JÁ estava morto não é
+   * transição nenhuma: é um ato deliberado, e continua valendo — a demo da
+   * recusa sobrevive, agora como escolha visível em vez de resíduo.
+   *
+   * Serve igual para `revoked`, `exhausted` e `expired`: as três são morte.
+   */
+  const wasFocused = useRef({ id: null, status: null });
+  useEffect(() => {
+    const before = wasFocused.current;
+    const id = focused?.mandateId ?? null;
+    const status = focused?.status ?? null;
+    wasFocused.current = { id, status };
+
+    const died = before.id && before.id === id && before.status === "active" && status && status !== "active";
+    if (died) setSelectedId(null);
+  }, [focused?.mandateId, focused?.status]);
 
   // Compras que o vigia fez sozinho: a `idempotencyKey` com prefixo `watch:` é
   // o que as distingue das compras feitas na conversa.  Sem endpoint novo — o
@@ -181,9 +207,10 @@ export default function App() {
           onClose={() => setRevoking(null)}
           onConfirm={async () => {
             await api.revoke(revoking.mandateId, locale);
-            // Fica selecionado de propósito: a próxima tentativa do agente tem
-            // que ser sob ESTE mandato, para a recusa da Autoridade aparecer.
-            setSelectedId(revoking.mandateId);
+            // Não fixamos mais o revogado no foco: `wasFocused` o solta quando
+            // ele morre.  Para ver a Autoridade recusar, aponte para ele de
+            // novo em "meus mandatos" — deliberado, e não uma sobra que
+            // contamina o próximo pedido.
             await reload();
           }}
         />

@@ -82,7 +82,7 @@ export function compare(items, mandate, strategy = "best") {
  * Tenta a compra: assina o bilhete e entrega à loja.  O agente NÃO interpreta
  * o resultado — ele repassa o que a Autoridade respondeu, inclusive o "não".
  */
-export async function attemptPurchase({ mandateId, item, agentId, agentSecret, idempotencyKey }) {
+export async function attemptPurchase({ mandateId, item, agentId, agentSecret, idempotencyKey, quantity = 1 }) {
   const ticket = issueTicket(
     {
       agentId,
@@ -92,6 +92,11 @@ export async function attemptPurchase({ mandateId, item, agentId, agentSecret, i
       // O preço que o agente VIU e escolheu.  É esta a segunda fonte que impede
       // a loja de atestar um valor maior, ainda dentro do teto do mandato.
       price: item.price,
+      // Quantas unidades ele escolheu, e quanto isso soma.  Assinar os dois é o
+      // que impede a loja de multiplicar as unidades depois — cada uma dentro
+      // do teto unitário, e o total muito além do que o humano autorizou.
+      quantity,
+      total: item.price * quantity,
       currency: item.currency,
     },
     agentSecret
@@ -102,6 +107,7 @@ export async function attemptPurchase({ mandateId, item, agentId, agentSecret, i
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       productId: item.productId,
+      quantity,
       mandateId,
       purchaseTicket: ticket,
       idempotencyKey: idempotencyKey ?? newNonce(),

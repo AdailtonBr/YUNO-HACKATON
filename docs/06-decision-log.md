@@ -123,3 +123,24 @@ Regras de qualidade:
   - **D15** antecipa a objeção natural a B ("e em escala?") e a responde mostrando que A e B convergem no limite.
 
 Ordem sugerida no slide/documento: D1 → D2 → D4 → D6/D7 → **D16** → D10/D11 → D9 → D13 → D15, cada uma no formato acima. D16 entra logo depois do modelo de confiança, porque é o que o torna verdadeiro; D15 fecha bem, retomando D2 e mostrando que a escolha do MVP não fecha porta nenhuma.
+
+---
+
+## D19 — Quantidade: o teto de dinheiro é o do **total**, e mandato sem esse teto compra uma unidade
+
+**Contexto.** O app só comprava uma unidade de cada coisa. "Quero dois tênis" não tinha como ser dito.
+
+**O problema, que não é de conveniência.** A implementação óbvia — aceitar `quantity` e cobrar `price × quantity` — abre um buraco. O mandato diz `price lte 15000` e o humano lê isso como *"o agente pode gastar R$150"*. Com a quantidade solta, vinte unidades a R$150 são R$3.000 **sem violar regra nenhuma**: cada uma cabe. A invariante 5 (*o verificado é o cobrado*) continuaria verdadeira no papel, e ainda assim o número que o humano autorizou teria parado de significar o que ele achava.
+
+**Decisão.**
+
+1. `price` continua sendo o **unitário**; `total` (`price × quantity`) entra como atributo atestado novo. Não mudamos o significado de um atributo que já existia — mandatos antigos continuam querendo dizer o que diziam.
+2. **O teto de dinheiro que limita gasto é o de `total`.** É ele que sai da conta.
+3. **`quantity` e `total` são assinados no bilhete**, pela mesma razão que o preço: sem isso a loja infla a quantidade depois que o agente assinou, cada unidade dentro do teto. E a Autoridade **refaz a conta** — um total afirmado não é um total verificado.
+4. **Mandato sem regra de `total` compra UMA unidade.** Esquecer bloqueia, não libera.
+5. **`maxUses` conta compras, não unidades.** Levar dois tênis numa transação é um uso; quem limita quantidade é o `total`.
+6. A aprovação humana **congela quantidade e total**: aprovar 2 por R$196 não autoriza 5.
+
+**Alternativa rejeitada: migrar os mandatos antigos copiando `price` para `total`.** Seria a Autoridade reescrevendo o que um humano autorizou — alargar sozinha uma autorização é precisamente o que ela existe para impedir. Preferimos recusar e explicar: *"este mandato não limita o total, então autoriza uma unidade por vez"*.
+
+**O que cai de graça.** `quantity lte 3` funciona **sem tocar no motor**, porque o vocabulário é aberto (D3) — é o motor genérico se pagando. E a frase do mandato mudou junto: `price` agora se lê *"pagar no máximo X por unidade"*, e só `total` se lê *"gastar no máximo X"*. A frase é o que o humano consente; deixá-la dizendo "gastar" sobre o unitário seria descrever o mandato errado para a única pessoa que precisa entendê-lo.

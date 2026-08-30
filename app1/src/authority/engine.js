@@ -44,6 +44,7 @@ export function approvalMatches(approval, mandate, purchase, ctx) {
     approval.merchantId === ctx.authenticatedMerchantId &&
     approval.productId === purchase.productId &&
     approval.price === purchase.price &&
+    (approval.quantity ?? 1) === (purchase.quantity ?? 1) &&
     approval.consumedAt == null &&
     approval.expiresAt > now
   );
@@ -76,6 +77,22 @@ export function evaluate(mandate, purchase, ctx) {
   if (ticket.price !== purchase.price) return deny("ticket_price_mismatch");
   if (ticket.currency !== purchase.currency) return deny("ticket_currency_mismatch");
 
+  //    Quantidade e total seguem a mesma regra do preço.  Uma loja que só não
+  //    pudesse mexer no unitário ainda multiplicaria as unidades: vinte itens de
+  //    R$99 cabem num teto de R$100 cada, e esvaziam a conta.  Normalizamos a
+  //    ausência para UMA unidade — bilhete e loja antigos continuam válidos, e o
+  //    lado seguro é o default.
+  const quantity = purchase.quantity ?? 1;
+  const total = purchase.total ?? purchase.price * quantity;
+
+  if (!Number.isInteger(quantity) || quantity < 1) return deny("quantity_invalid", { quantity });
+  if ((ticket.quantity ?? 1) !== quantity) return deny("ticket_quantity_mismatch");
+  if ((ticket.total ?? ticket.price) !== total) return deny("ticket_total_mismatch");
+
+  //    E a conta tem que fechar.  O total é o que sai da conta, então ele não
+  //    pode ser afirmado — tem que ser derivável do que foi atestado.
+  if (total !== purchase.price * quantity) return deny("total_mismatch", { total });
+
   //    E a moeda do mandato manda: o motor compara price como número puro, então
   //    sem isto `price lte 10000` aprovaria US$100 do mesmo jeito que R$100.
   if (mandate.currency !== purchase.currency) return deny("currency_outside_mandate");
@@ -88,6 +105,22 @@ export function evaluate(mandate, purchase, ctx) {
 
   // 2) Dono: identidade PROVADA (assinatura do agente), não declarada por ninguém.
   if (ticket.agentId !== mandate.agentId) return deny("agent_not_owner");
+
+  // 2.5) Quantidade só existe onde o mandato sabe limitá-la.
+  //
+  //      Um mandato diz `price lte 15000`, e o humano leu isso como "o agente
+  //      pode gastar R$150".  Se a quantidade correr solta debaixo dessa regra,
+  //      o número que ele autorizou para de significar o que ele achava: R$150
+  //      vira R$150 × N, sem violar regra nenhuma.  O teto de dinheiro que
+  //      importa é o do TOTAL, porque é o total que sai da conta.
+  //
+  //      Então, sem uma regra sobre `total`, a compra é de UMA unidade.
+  //      Esquecer bloqueia, não libera.  E a Autoridade NÃO conserta o mandato
+  //      sozinha copiando `price` para `total`: alargar o que um humano
+  //      autorizou é precisamente o que ela existe para impedir.
+  if (quantity > 1 && !mandate.constraints.some((c) => c.attr === "total")) {
+    return deny("quantity_uncapped", { quantity });
+  }
 
   // 3) Constraints de atributo (motor genérico).
   //

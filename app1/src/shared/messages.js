@@ -26,6 +26,12 @@ const REASONS = {
     ticket_merchant_mismatch: () => "The ticket was not issued for this store.",
     ticket_product_mismatch: () => "The ticket was not issued for this product.",
     ticket_price_mismatch: () => "The price the store reported is not the price the agent asked for.",
+    ticket_quantity_mismatch: () => "The quantity the store reported is not the quantity the agent asked for.",
+    ticket_total_mismatch: () => "The total the store reported is not the total the agent signed for.",
+    total_mismatch: () => "The total does not match unit price times quantity.",
+    quantity_invalid: ({ quantity }) => `Invalid quantity: ${quantity}.`,
+    quantity_uncapped: ({ quantity }) =>
+      `This mandate has no limit on the total, so it authorises one unit at a time — not ${quantity}. Create a mandate with a total cap to buy more than one.`,
     ticket_currency_mismatch: () => "The currency the store reported is not the one the agent asked for.",
     currency_outside_mandate: () => "The purchase currency is not the mandate's currency.",
     unknown_agent: () => "Unknown or inactive agent.",
@@ -52,6 +58,12 @@ const REASONS = {
     ticket_merchant_mismatch: () => "O bilhete não foi emitido para esta loja.",
     ticket_product_mismatch: () => "O bilhete não foi emitido para este produto.",
     ticket_price_mismatch: () => "O preço informado pela loja não é o preço que o agente pediu.",
+    ticket_quantity_mismatch: () => "A quantidade informada pela loja não é a que o agente pediu.",
+    ticket_total_mismatch: () => "O total informado pela loja não é o total que o agente assinou.",
+    total_mismatch: () => "O total não bate com o preço unitário vezes a quantidade.",
+    quantity_invalid: ({ quantity }) => `Quantidade inválida: ${quantity}.`,
+    quantity_uncapped: ({ quantity }) =>
+      `Este mandato não limita o total, então autoriza uma unidade por vez — não ${quantity}. Para levar mais de uma, crie um mandato com teto de total.`,
     ticket_currency_mismatch: () => "A moeda informada pela loja não é a que o agente pediu.",
     currency_outside_mandate: () => "A moeda da compra não é a do mandato.",
     unknown_agent: () => "Agente desconhecido ou inativo.",
@@ -87,7 +99,15 @@ export function reasonText(reason, locale = DEFAULT_LOCALE) {
 
 const CONSTRAINT_PHRASE = {
   en: {
-    price: (c, cur) => (c.op === "lte" ? `spend at most ${money(c.value, cur, "en")}` : `price ${c.op} ${c.value}`),
+    // "per item", não "spend at most": `price` é o preço de UMA unidade, e desde
+    // que quantidade existe, chamá-lo de gasto seria descrever o mandato errado
+    // para a única pessoa que precisa entendê-lo.
+    price: (c, cur) =>
+      c.op === "lte" ? `pay at most ${money(c.value, cur, "en")} per item` : `unit price ${c.op} ${c.value}`,
+    // Este sim é o teto de gasto: é o que sai da conta.
+    total: (c, cur) =>
+      c.op === "lte" ? `spend at most ${money(c.value, cur, "en")} in total` : `total ${c.op} ${c.value}`,
+    quantity: (c) => (c.op === "lte" ? `at most ${c.value} units` : `quantity ${c.op} ${fmt(c.value)}`),
     category: (c) => (c.op === "eq" ? `buy only ${c.value}` : `category ${c.op} ${fmt(c.value)}`),
     ship_country: (c) => (c.op === "eq" ? `only from sellers in ${c.value}` : `shipping country ${c.op} ${fmt(c.value)}`),
     size: (c) => (c.op === "eq" ? `size ${c.value}` : `size ${c.op} ${fmt(c.value)}`),
@@ -96,7 +116,11 @@ const CONSTRAINT_PHRASE = {
     _default: (c) => `${c.attr} ${c.op} ${fmt(c.value)}`,
   },
   "pt-BR": {
-    price: (c, cur) => (c.op === "lte" ? `gastar no máximo ${money(c.value, cur, "pt-BR")}` : `preço ${c.op} ${c.value}`),
+    price: (c, cur) =>
+      c.op === "lte" ? `pagar no máximo ${money(c.value, cur, "pt-BR")} por unidade` : `preço unitário ${c.op} ${c.value}`,
+    total: (c, cur) =>
+      c.op === "lte" ? `gastar no máximo ${money(c.value, cur, "pt-BR")} no total` : `total ${c.op} ${c.value}`,
+    quantity: (c) => (c.op === "lte" ? `no máximo ${c.value} unidades` : `quantidade ${c.op} ${fmt(c.value)}`),
     category: (c) => (c.op === "eq" ? `comprar só ${c.value}` : `categoria ${c.op} ${fmt(c.value)}`),
     ship_country: (c) => (c.op === "eq" ? `só de vendedores em ${c.value}` : `país de origem ${c.op} ${fmt(c.value)}`),
     size: (c) => (c.op === "eq" ? `tamanho ${c.value}` : `tamanho ${c.op} ${fmt(c.value)}`),

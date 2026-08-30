@@ -394,3 +394,98 @@ test("cada parte ve o seu: humano, loja e auditor", async () => {
   assert.ok(trail.some((e) => e.event === "mandate_created"));
   assert.ok(trail.some((e) => e.event === "payment_result" && e.receiptId));
 });
+
+/* --------------------------- quantidade --------------------------- */
+
+/** Compra direta na loja, com o bilhete assinado — como o agente faz. */
+async function buyDirect(mandateId, { productId = "TEN-001", quantity, store = 0 } = {}) {
+  const { attemptPurchase } = await import("../src/agent/agent.js");
+  const item = {
+    productId,
+    merchantId: "store_a",
+    price: STORES.store_a.toCommon(STORES.store_a.catalog.find((p) => p.sku === productId)).price,
+    currency: "BRL",
+    storeUrl: storeServers[store].url,
+  };
+  return attemptPurchase({
+    mandateId,
+    item,
+    quantity,
+    agentId: DEMO.agentId,
+    agentSecret: DEMO.agentSecret,
+  });
+}
+
+/** O mandato da demo, agora com teto de TOTAL — o que autoriza levar mais de um. */
+const shoeMandateWithTotal = (total, over = {}) =>
+  shoeMandate({
+    constraints: [
+      { attr: "category", op: "eq", value: "calcado", on_missing: "deny", on_fail: "deny" },
+      { attr: "size", op: "eq", value: "40", on_missing: "deny", on_fail: "deny" },
+      { attr: "price", op: "lte", value: 10000, on_missing: "deny", on_fail: "deny" },
+      { attr: "total", op: "lte", value: total, on_missing: "deny", on_fail: "deny" },
+      { attr: "ship_country", op: "eq", value: "BR", on_missing: "deny", on_fail: "deny" },
+    ],
+    ...over,
+  });
+
+test("QUANTIDADE: dois tenis, e o COBRADO e o total — nao o preco de um", async () => {
+  const mandateId = await shoeMandateWithTotal(25000); // até R$250 no total
+  const r = await buyDirect(mandateId, { quantity: 2 });
+
+  assert.equal(r.ok, true);
+  // 2 × R$98 = R$196.  A loja informa o total, não só o preço de uma.
+  assert.equal(r.quantity, 2);
+  assert.equal(r.total, 19600);
+
+  // E o trilho registra o que de fato saiu da conta.
+  const pago = await AuditLog.findOne({ mandateId, event: "payment_result" }).lean();
+  assert.equal(pago.purchase.total, 19600);
+  assert.equal(pago.purchase.quantity, 2);
+
+  // Uma compra é UM uso, mesmo levando duas unidades: quantidade não é uso.
+  const m = await Mandate.findById(mandateId).lean();
+  assert.equal(m.usedCount, 1);
+});
+
+test("QUANTIDADE: o mandato sem teto de total recusa a segunda unidade", async () => {
+  const mandateId = await shoeMandate(); // só teto por unidade
+  const r = await buyDirect(mandateId, { quantity: 2 });
+
+  assert.equal(r.ok, false);
+  assert.equal(r.reason.code, "quantity_uncapped");
+
+  // Recusa não gasta uso.
+  const m = await Mandate.findById(mandateId).lean();
+  assert.equal(m.usedCount, 0);
+});
+
+test("QUANTIDADE: o mesmo mandato compra UMA unidade sem reclamar", async () => {
+  const mandateId = await shoeMandate();
+  const r = await buyDirect(mandateId, { quantity: 1 });
+  assert.equal(r.ok, true);
+  assert.equal(r.total, 9800);
+});
+
+test("QUANTIDADE: o total do humano barra a quantidade que o estoura", async () => {
+  const mandateId = await shoeMandateWithTotal(15000); // até R$150 no total
+  const r = await buyDirect(mandateId, { quantity: 2 }); // R$196
+
+  assert.equal(r.ok, false);
+  // Quem barrou foi a REGRA do humano, e o trace nomeia qual.
+  assert.equal(r.trace.find((t) => t.attr === "total").verdict, "violated");
+});
+
+test("QUANTIDADE: sem estoque a LOJA recusa, sem incomodar a Autoridade", async () => {
+  const mandateId = await shoeMandateWithTotal(500000);
+  // TEN-002 tem estoque 1 no catálogo.
+  const r = await buyDirect(mandateId, { productId: "TEN-002", quantity: 3 });
+
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "insufficient_stock");
+  assert.equal(r.available, 1);
+
+  // "Não tenho isso" não é decisão de autorização: nada foi registrado no trilho.
+  const eventos = await AuditLog.countDocuments({ mandateId, event: "purchase_decision" });
+  assert.equal(eventos, 0);
+});

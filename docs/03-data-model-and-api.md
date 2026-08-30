@@ -12,6 +12,8 @@ A Autoridade não mantém um catálogo de atributos possíveis — o motor é ab
 | `price` | number | em **centavos** (evita float) |
 | `currency` | string | ISO-4217 (`BRL`) |
 | `category` | string | taxonomia grossa da demo: `calcado`, `higiene`, `software`, `evento`, `eletronico`. **Quase nunca basta sozinha num mandato** — ver `product_type` abaixo. |
+| `quantity` | int | quantas unidades a compra leva. **Atestada pela loja** (que confere o estoque), assinada pelo agente. Default 1 em toda a cadeia — bilhete, loja e mandato antigos continuam válidos. |
+| `total` | int (centavos) | `price × quantity`: **o que sai da conta**. É o único teto de dinheiro que limita gasto; `price` limita o preço de *uma unidade*. Um mandato sem regra de `total` compra **uma** unidade (ver D19). |
 | `product_type` | string | o que a coisa **é**: `headphones`, `keyboard`, `desk_lamp`, `running_shoe`, `toothpaste`… Existe porque `category` é grossa: um mandato de *"eletrônico até R$150"* compra uma luminária de R$89,90 quando a pessoa pediu um fone — e está tecnicamente certo, porque o mandato nunca disse "fone". É o atributo que permite ao mandato dizer o que você quis. |
 | `ship_country` | string | ISO-3166 alpha-2 (`BR`, `CN`) |
 | `size` | string | específico de calçado |
@@ -96,7 +98,7 @@ Uma pendência = **uma compra específica esperando o "sim" do humano**. É o me
 Notas — cada uma fecha um furo:
 
 - **Só a Autoridade escreve** esta coleção. O agente não cria pendência nem aprova nenhuma; ele apenas recebe `escalate` e tenta de novo depois. Invariante 3 do `CLAUDE.md` preservada.
-- **Vínculo estreito + uso único.** A aprovação casa por `(mandateId, merchantId, productId, price)`, com `consumedAt: null` e não expirada. Sem isso, aprovar um tênis de R$98 viraria um cheque em branco para qualquer outra compra.
+- **Vínculo estreito + uso único.** A aprovação casa por `(mandateId, merchantId, productId, price, quantity)`, com `consumedAt: null` e não expirada. Sem isso, aprovar um tênis de R$98 viraria um cheque em branco para qualquer outra compra — e sem a `quantity`, aprovar **duas** unidades autorizaria cinco.
 - **`price` é congelado no momento da pendência.** O humano aprova um número, não um produto de preço variável. Se a loja mudar o preço entre a pendência e a retentativa, o casamento falha e sobe nova pendência — correto.
 - **Aprovar não alarga o mandato.** Libera *aquela* compra; `constraints`, teto e validade continuam intactos. Alargar mandato só acontece criando outro, pela mão do humano (D4).
 - **Aprovar exige o humano autenticado** como `humanId` do mandato — pela Trusted Surface, num caminho que o agente não alcança.
@@ -118,7 +120,7 @@ Notas — cada uma fecha um furo:
 A Autoridade **não** aceita a palavra da loja sobre quem é o agente. A cada tentativa, o agente assina um bilhete que descreve exatamente a compra que ele está pedindo; a loja **repassa o bilhete intacto** e a Autoridade o verifica ela mesma.
 
 ```js
-payload = { mandateId, merchantId, productId, price, currency, nonce, iat, exp }
+payload = { mandateId, merchantId, productId, price, quantity, total, currency, nonce, iat, exp }
 ticket  = base64url(payload) + "." + hmacSha256(agentSecret, base64url(payload))
 ```
 
@@ -130,6 +132,8 @@ Regras:
 - `price` + `currency` no bilhete são o valor que o agente **viu no catálogo e escolheu**. A Autoridade só aprova se o valor **atestado pela loja** for exatamente esse.
 
 Por que amarrar o preço, já que a loja atesta os atributos: as constraints são **tetos, não valores exatos**. Com um mandato "no máximo R$100", tanto R$98 quanto R$99,99 passam — e só o agente sabe qual dos dois ele de fato escolheu. Sem o preço no bilhete, a loja pode atestar um valor maior do que anunciou, ainda dentro do teto, e a Autoridade não tem com o que comparar. O bilhete é a **segunda fonte independente** daquele número.
+
+> **`quantity` e `total` entram pelo mesmo motivo que o preço.** Com o unitário preso mas a quantidade solta, uma loja registrada atenderia um bilhete de *"um tênis a R$99"* como *"vinte tênis a R$99"*: cada unidade dentro do teto, e R$1.980 saindo da conta. A Autoridade ainda refaz a conta (`total == price × quantity`), porque um total **afirmado** não é um total verificado.
 
 > Amarramos o preço e a moeda, não `size`/`color`: o preço é o que move dinheiro. Se a loja atestar "tamanho 40" e enviar 42, isso é fraude de entrega — morre no `audit_log` e na disputa, não em cripto. O produto já está preso pelo `productId`.
 

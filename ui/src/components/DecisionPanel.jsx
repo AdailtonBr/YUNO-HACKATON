@@ -7,7 +7,7 @@
  * inventar.  Uma decisão sobre dinheiro tem que poder ser reconstituída.
  */
 
-import { money } from "../api.js";
+import { money, isMoneyAttr } from "../api.js";
 import { t } from "../i18n.js";
 import { Chip, Label, Panel } from "./ui.jsx";
 
@@ -24,7 +24,7 @@ const fmt = (v) => (Array.isArray(v) ? v.join(", ") : v === undefined ? "—" : 
 
 /** `price` vive em centavos; qualquer outro atributo é literal. */
 const fmtValue = (attr, v, currency, locale) =>
-  attr === "price" && typeof v === "number" ? money(v, currency, locale) : fmt(v);
+  isMoneyAttr(attr) && typeof v === "number" ? money(v, currency, locale) : fmt(v);
 
 export default function DecisionPanel({ locale, trace = [], reasonText, outcome, currency = "BRL", compact = false }) {
   const T = (k) => t(locale, k);

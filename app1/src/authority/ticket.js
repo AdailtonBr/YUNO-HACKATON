@@ -24,6 +24,8 @@ const canonicalPayload = (p) => ({
   merchantId: p.merchantId,
   productId: p.productId,
   price: p.price,
+  quantity: p.quantity,
+  total: p.total,
   currency: p.currency,
   nonce: p.nonce,
   iat: p.iat,
@@ -45,9 +47,16 @@ export const opaqueId = (prefix) => `${prefix}_${crypto.randomBytes(16).toString
  * `price` e `currency` entram porque as constraints são TETOS: sem eles, a loja
  * poderia atestar um valor maior do que anunciou, ainda dentro do teto, e a
  * Autoridade não teria com o que comparar.
+ *
+ * `quantity` e `total` entram pelo MESMO motivo, e o buraco que eles fecham é
+ * maior: com o preço unitário preso mas a quantidade solta, uma loja registrada
+ * atenderia um bilhete de "um tênis a R$99" como "vinte tênis a R$99" —
+ * cada unidade dentro do teto, e R$1.980 saindo da conta.  O agente assina
+ * quantas unidades escolheu e quanto isso soma; a loja não tem como aumentar
+ * nenhum dos dois depois.
  */
 export function issueTicket(
-  { agentId, mandateId, merchantId, productId, price, currency },
+  { agentId, mandateId, merchantId, productId, price, quantity = 1, total, currency },
   secret,
   { now = new Date(), ttlSeconds = DEFAULT_TTL_SECONDS, nonce = newNonce() } = {}
 ) {
@@ -58,6 +67,10 @@ export function issueTicket(
     merchantId,
     productId,
     price,
+    quantity,
+    // O total é derivado, mas viaja assinado: quem confere não precisa confiar
+    // na aritmética de ninguém — e a Autoridade ainda refaz a conta.
+    total: total ?? price * quantity,
     currency,
     nonce,
     iat,

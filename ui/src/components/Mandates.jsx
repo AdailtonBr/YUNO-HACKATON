@@ -16,7 +16,7 @@
  */
 
 import { useState } from "react";
-import { money } from "../api.js";
+import { money, isMoneyAttr } from "../api.js";
 import { t } from "../i18n.js";
 import { Button, Chip, Label, Panel, ScreenHead, Empty, Mono } from "./ui.jsx";
 
@@ -104,7 +104,7 @@ function MandateRow({ locale, m, selected, onSelect, onRevoke, defaultOpen }) {
                       {c.attr}
                     </td>
                     <td className="px-3 py-2 font-mono text-[12.5px] text-stone-600">
-                      {c.op} {c.attr === "price" ? money(c.value, m.currency, locale) : String(c.value)}
+                      {c.op} {isMoneyAttr(c.attr) ? money(c.value, m.currency, locale) : String(c.value)}
                     </td>
                     <td className="px-3 py-2">
                       <Chip tone={POLICY_TONE[c.on_missing]}>{T(`policy.${c.on_missing}`)}</Chip>

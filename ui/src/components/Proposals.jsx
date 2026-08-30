@@ -17,7 +17,7 @@
  */
 
 import { useState } from "react";
-import { api, money } from "../api.js";
+import { api, money, isMoneyAttr } from "../api.js";
 import { t } from "../i18n.js";
 import { Button, Chip, Label, Panel, PanelHead, ScreenHead, Empty, Mono } from "./ui.jsx";
 
@@ -194,7 +194,7 @@ export default function Proposals({ locale, proposals, methods = [], addresses =
                         </td>
                         <td className="px-3 py-2 font-mono text-[12.5px] text-stone-600">
                           {c.op}{" "}
-                          {c.attr === "price" ? money(c.value, p.draft.currency, locale) : String(c.value)}
+                          {isMoneyAttr(c.attr) ? money(c.value, p.draft.currency, locale) : String(c.value)}
                         </td>
                         <td className="px-3 py-2">
                           <Chip tone={POLICY_TONE[c.on_missing ?? "deny"]}>

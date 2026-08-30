@@ -57,9 +57,20 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, setPrice, setA
   });
 
   app.post("/buy", async (req, res) => {
-    const { productId, mandateId, purchaseTicket, idempotencyKey } = req.body ?? {};
+    const { productId, mandateId, purchaseTicket, idempotencyKey, quantity: asked } = req.body ?? {};
     const product = common().find((p) => p.productId === productId);
     if (!product) return res.status(404).json({ ok: false, reason: "unknown_product" });
+
+    // Quantidade: inteiro ≥ 1, e nunca mais do que existe.  Quem sabe o estoque
+    // é a loja, então é ela quem recusa — e recusa ANTES de incomodar a
+    // Autoridade, porque "não tenho isso" não é uma questão de autorização.
+    const quantity = asked ?? 1;
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return res.status(400).json({ ok: false, reason: "invalid_quantity" });
+    }
+    if (quantity > product.stock) {
+      return res.status(409).json({ ok: false, reason: "insufficient_stock", available: product.stock });
+    }
 
     // Os atributos vêm do PRODUTO REAL, montados pela loja — nunca do agente.
     // É o que fecha o confused deputy: o agente não consegue mentir preço nem
@@ -69,12 +80,28 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, setPrice, setA
     // mandato dizer "compre EXATAMENTE este item", que é o limite mais apertado
     // que existe.  Sem ele atestado aqui, uma regra sobre productId nunca casaria
     // e recusaria toda compra — regra que não casa não protege, atrapalha.
-    const { name, price, currency, ...attributes } = product;
+    // `stock` sai fora: é inventário da loja, não característica do item.  Se
+    // entrasse entre os atributos atestados, o agente veria "o estoque varia
+    // entre os candidatos" e passaria a perguntar sobre estoque ao humano.
+    const { name, price, currency, stock, ...attributes } = product;
     // `name` viaja FORA de `attributes`: é rótulo para o humano ler na tela de
     // aprovação ("Desk Lamp" diz algo; "ELE-003" não diz nada).  Fora dos
     // atributos porque não é regra — nomes diferem entre lojas, o identificador
     // é o `productId`.
-    const purchase = { productId, name, price, currency, attributes: { ...attributes, price } };
+    // `price` é o UNITÁRIO e `total` é o que sai da conta.  Os dois viajam como
+    // atributos atestados, então um mandato pode limitar qualquer um dos dois:
+    // `price` filtra qualidade ("nada acima de R$150 a unidade"), `total` limita
+    // o gasto.  Só o segundo é teto de dinheiro de verdade.
+    const total = price * quantity;
+    const purchase = {
+      productId,
+      name,
+      price,
+      quantity,
+      total,
+      currency,
+      attributes: { ...attributes, price, quantity, total },
+    };
 
     let result;
     try {
@@ -99,6 +126,8 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, setPrice, setA
       mandateId,
       productId,
       price,
+      quantity,
+      total,
       currency,
       decision: result.valid ? "valido" : result.action === "escalate" ? "escalado" : "recusado",
       reasonText: result.reasonText ?? null,
@@ -108,7 +137,17 @@ export function buildStore({ id, name, apiKey, catalog, toCommon, setPrice, setA
     // A loja repassa o veredito da Autoridade inteiro, inclusive o detalhe por
     // regra.  Ela nao interpreta nem resume: nao e dela a decisao.
     if (result.valid) {
-      return res.json({ ok: true, receiptId: result.receiptId, price, currency, trace: result.trace ?? [] });
+      // `total` volta junto: quem comprou tem o direito de ver o que saiu da
+      // conta, e não deduzi-lo multiplicando na cabeça.
+      return res.json({
+        ok: true,
+        receiptId: result.receiptId,
+        price,
+        quantity,
+        total,
+        currency,
+        trace: result.trace ?? [],
+      });
     }
     res.json({
       ok: false,

@@ -73,7 +73,12 @@ const approvalSchema = new Schema(
     merchantId: { type: String, required: true },
     productId: { type: String, required: true },
     name: String, // o que o humano lê; `productId` é o que a regra usa
-    price: { type: Number, required: true }, // congelado: o humano aprova um número
+    price: { type: Number, required: true }, // unitário, congelado
+    // Quantidade e total também congelam: o humano aprova "2 por R$196", e essa
+    // aprovação não pode ser reaproveitada para 5.  O default 1 mantém válidas
+    // as aprovações criadas antes de quantidade existir.
+    quantity: { type: Number, default: 1 },
+    total: { type: Number }, // o número que o humano de fato autoriza a sair
     currency: { type: String, required: true },
     attributes: { type: Schema.Types.Mixed, default: {} },
     origin: { type: String, enum: ["mode_aprovacao", "on_fail", "on_missing"], required: true },
@@ -127,6 +132,12 @@ const auditSchema = new Schema(
   {
     _id: String,
     ts: { type: Date, default: Date.now },
+    // Desempate para eventos do MESMO milissegundo.  `ts` tem resolução de
+    // milissegundo, e uma compra grava decisão e recibo dentro de um: sem isto,
+    // o topo do trilho alternava entre os dois a cada leitura.  Num registro de
+    // auditoria a ordem é parte do que se está afirmando — "cobrou depois de
+    // verificar" é a frase inteira —, então ela não pode sair ao acaso.
+    seq: { type: Number, default: 0, index: true },
     event: { type: String, required: true },
     actor: { type: Schema.Types.Mixed },
     mandateId: { type: String, index: true },
@@ -214,6 +225,14 @@ export const Agent = model("Agent", agentSchema, "agents");
 export const Approval = model("Approval", approvalSchema, "approvals");
 export const UsedNonce = model("UsedNonce", usedNonceSchema, "used_nonces");
 export const Proposal = model("Proposal", proposalSchema, "mandate_proposals");
+/**
+ * Contador monotônico do processo.  Entre processos quem manda é `ts`, e está
+ * certo: dois eventos de processos diferentes no mesmo milissegundo são
+ * concorrentes de verdade, e nenhuma ordem entre eles seria mais verdadeira.
+ */
+let auditSeq = 0;
+export const nextAuditSeq = () => ++auditSeq;
+
 export const AuditLog = model("AuditLog", auditSchema, "audit_log");
 export const PaymentMethod = model("PaymentMethod", paymentMethodSchema, "payment_methods");
 export const Address = model("Address", addressSchema, "addresses");

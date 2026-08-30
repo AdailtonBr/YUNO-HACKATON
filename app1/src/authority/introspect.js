@@ -11,7 +11,7 @@
  *   7. audit_log          -> append-only, base da disputa
  */
 
-import { Mandate, Agent, Approval, UsedNonce, AuditLog, Idempotency } from "./models.js";
+import { Mandate, Agent, Approval, UsedNonce, AuditLog, Idempotency, nextAuditSeq } from "./models.js";
 import { verifyTicket, peekAgentId, opaqueId } from "./ticket.js";
 import { evaluate } from "./engine.js";
 import { charge } from "./vault.js";
@@ -19,7 +19,7 @@ import { charge } from "./vault.js";
 const APPROVAL_TTL_MS = 15 * 60 * 1000;
 
 async function audit(entry) {
-  await AuditLog.create({ _id: opaqueId("aud"), ...entry });
+  await AuditLog.create({ _id: opaqueId("aud"), seq: nextAuditSeq(), ...entry });
 }
 
 const reject = (code, params = {}) => ({ valid: false, action: "reject", reason: { code, params } });
@@ -79,6 +79,8 @@ export async function introspect(body, { merchantId }) {
     merchantId,
     productId: purchase?.productId,
     price: purchase?.price,
+    // A quantidade entra no casamento: aprovar 2 unidades não pode liberar 5.
+    quantity: purchase?.quantity ?? 1,
     status: "approved",
     consumedAt: null,
     expiresAt: { $gt: now },
@@ -120,6 +122,7 @@ export async function introspect(body, { merchantId }) {
       merchantId,
       productId: purchase.productId,
       price: purchase.price,
+      quantity: purchase.quantity ?? 1,
       status: "rejected",
     }).lean();
 
@@ -134,6 +137,7 @@ export async function introspect(body, { merchantId }) {
       merchantId,
       productId: purchase.productId,
       price: purchase.price,
+      quantity: purchase.quantity ?? 1,
       status: "pending",
       expiresAt: { $gt: now },
     }).lean();
@@ -148,6 +152,9 @@ export async function introspect(body, { merchantId }) {
         productId: purchase.productId,
         name: purchase.name ?? null,
         price: purchase.price, // congelado: o humano aprova um número
+        quantity: purchase.quantity ?? 1,
+        // O total é o que ele de fato autoriza sair da conta.
+        total: purchase.total ?? purchase.price,
         currency: purchase.currency,
         attributes: purchase.attributes ?? {},
         origin: decision.reason.code === "approval_required" ? "mode_aprovacao" : "on_fail",
@@ -216,7 +223,9 @@ export async function introspect(body, { merchantId }) {
   // --- 6) Cobrança.  Quem lê a ref e chama o cofre é a AUTORIDADE.
   const receipt = charge({
     paymentMethodRef: mandate.paymentMethodRef,
-    amount: purchase.price, // o VERIFICADO é o COBRADO
+    // O VERIFICADO é o COBRADO — e o que se verificou foi o TOTAL, porque é
+    // ele que o mandato limita e é ele que sai da conta.
+    amount: purchase.total ?? purchase.price,
     currency: purchase.currency,
     merchantId,
     idempotencyKey,

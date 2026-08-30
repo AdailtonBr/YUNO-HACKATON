@@ -64,3 +64,12 @@ export const api = {
 
 export const money = (cents, currency = "BRL", locale = "en") =>
   new Intl.NumberFormat(locale === "pt" ? "pt-BR" : "en-US", { style: "currency", currency }).format(cents / 100);
+
+/**
+ * Quais atributos de constraint são DINHEIRO e, portanto, se formatam como
+ * dinheiro.  `price` é o preço de uma unidade; `total` é o que sai da conta —
+ * e é o `total` que limita o gasto, então ele nunca pode aparecer como um
+ * número solto na tela onde o humano decide.
+ */
+export const MONEY_ATTRS = new Set(["price", "total"]);
+export const isMoneyAttr = (attr) => MONEY_ATTRS.has(attr);

@@ -13,7 +13,7 @@
  */
 
 import { useState } from "react";
-import { api, money } from "../api.js";
+import { api, money, isMoneyAttr } from "../api.js";
 import { t } from "../i18n.js";
 import { Button, Chip, Label, Panel, ScreenHead, Empty, Mono } from "./ui.jsx";
 
@@ -94,9 +94,18 @@ function ApprovalRow({ locale, a, busy, onApprove, onRefuse }) {
               {a.attributes?.product_type ? ` · ${a.attributes.product_type}` : ""}
               {a.attributes?.ship_country ? ` · ${a.attributes.ship_country}` : ""}
             </span>
+            {/* Grande é o TOTAL: é o número que sai da conta se ele aprovar.
+                O unitário fica embaixo, pequeno, como a conta que o explica —
+                nunca sozinho no lugar de destaque, onde seria lido como o
+                valor da compra. */}
             <span className="mt-1.5 block font-mono text-[17px] font-medium text-stone-900">
-              {money(a.price, a.currency, locale)}
+              {money(a.total ?? a.price, a.currency, locale)}
             </span>
+            {(a.quantity ?? 1) > 1 && (
+              <span className="mt-0.5 block font-mono text-[12px] text-stone-500">
+                {a.quantity} × {money(a.price, a.currency, locale)}
+              </span>
+            )}
           </span>
         </button>
 
@@ -145,17 +154,17 @@ function ApprovalRow({ locale, a, busy, onApprove, onRefuse }) {
                   </thead>
                   <tbody>
                     {(a.mandate.constraints ?? []).map((c, i) => {
-                      const actual = c.attr === "price" ? a.price : a.attributes?.[c.attr];
+                      const actual = c.attr === "price" ? a.price : c.attr === "total" ? a.total ?? a.price : a.attributes?.[c.attr];
                       return (
                         <tr key={i} className="border-b border-stone-100 last:border-0">
                           <td className="whitespace-nowrap px-3 py-1.5 font-mono text-[12px] text-stone-700">{c.attr}</td>
                           <td className="px-3 py-1.5 font-mono text-[12px] text-stone-600">
-                            {c.op} {c.attr === "price" ? money(c.value, a.currency, locale) : String(c.value)}
+                            {c.op} {isMoneyAttr(c.attr) ? money(c.value, a.currency, locale) : String(c.value)}
                           </td>
                           <td className="px-3 py-1.5 font-mono text-[12px] text-stone-900">
                             {actual === undefined ? (
                               <span className="text-stone-300">—</span>
-                            ) : c.attr === "price" ? (
+                            ) : isMoneyAttr(c.attr) ? (
                               money(actual, a.currency, locale)
                             ) : (
                               String(actual)
