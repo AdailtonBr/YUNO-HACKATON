@@ -286,6 +286,25 @@ function keptHistory(messages, head, volatile) {
   });
 }
 
+/**
+ * A janela curta do histórico — cortada onde a API aceita.
+ *
+ * Cortar por contagem é ingênuo: o pedido de uma tool e a resposta dela são um
+ * par, e o corte cego cai no meio dele.  Sobra um `tool` sem o assistente que o
+ * pediu, e a OpenAI recusa o array INTEIRO — *"messages with role 'tool' must
+ * be a response to a preceeding message with 'tool_calls'"*.  O estrago é pior
+ * do que um turno perdido: o que quebrou é o histórico **guardado**, então toda
+ * mensagem seguinte reenvia o mesmo array inválido e a conversa não volta mais.
+ *
+ * Então recuamos o corte até uma fronteira válida, largando os `tool` órfãos do
+ * começo.  A janela fica um pouco menor que `size`; nunca fica inválida.
+ */
+export function windowHistory(history, size = 24) {
+  let cut = Math.max(0, history.length - size);
+  while (cut < history.length && history[cut].role === "tool") cut += 1;
+  return history.slice(cut);
+}
+
 async function callOpenAI(messages) {
   const res = await fetch(API, {
     method: "POST",

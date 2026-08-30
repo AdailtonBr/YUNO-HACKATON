@@ -10,7 +10,7 @@
 
 import express from "express";
 import { searchCatalogs, compare, attemptPurchase } from "./agent.js";
-import { runTurn } from "./llm.js";
+import { runTurn, windowHistory } from "./llm.js";
 
 // Lidos a cada chamada, não na carga do módulo: os testes sobem tudo em portas
 // efêmeras, e config lida cedo demais congela endereços que ainda não existem.
@@ -108,7 +108,9 @@ export function buildAgentRouter() {
     }
 
     const agent = agentCredential();
-    const history = conversations.get(conversationId) ?? [];
+    // Saneado também na LEITURA: um histórico já gravado quebrado se cura
+    // sozinho, em vez de exigir reiniciar o servidor para conversar de novo.
+    const history = windowHistory(conversations.get(conversationId) ?? []);
 
     try {
       const out = await runTurn({
@@ -125,7 +127,7 @@ export function buildAgentRouter() {
           humanId: agent.humanId,
         },
       });
-      conversations.set(conversationId, out.history.slice(-24)); // janela curta
+      conversations.set(conversationId, windowHistory(out.history)); // janela curta, cortada onde a API aceita
       res.json({ conversationId, text: out.text, events: out.events });
     } catch (e) {
       const missingKey = e.message === "missing_openai_key";
