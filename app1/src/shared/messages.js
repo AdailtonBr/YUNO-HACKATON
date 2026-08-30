@@ -39,6 +39,7 @@ const REASONS = {
     unknown_operator: (p) => `Unknown operator "${p.op}" in the mandate.`,
     constraint_failed: (p) => `"${p.attr}" is ${JSON.stringify(p.actual)}, which fails ${p.op} ${JSON.stringify(p.value)}.`,
     approval_required: () => "This mandate requires your approval for each purchase.",
+    approval_refused: () => "You refused this purchase at this price, so it is not being asked again.",
     payment_declined: () => "The payment was declined.",
   },
   "pt-BR": {
@@ -64,6 +65,7 @@ const REASONS = {
     unknown_operator: (p) => `Operador desconhecido "${p.op}" no mandato.`,
     constraint_failed: (p) => `"${p.attr}" é ${JSON.stringify(p.actual)}, o que falha em ${p.op} ${JSON.stringify(p.value)}.`,
     approval_required: () => "Este mandato exige sua aprovação a cada compra.",
+    approval_refused: () => "Você recusou esta compra por este preço, então ela não é perguntada de novo.",
     payment_declined: () => "O pagamento foi recusado.",
   },
 };

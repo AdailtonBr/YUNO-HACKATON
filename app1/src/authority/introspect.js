@@ -105,6 +105,30 @@ export async function introspect(body, { merchantId }) {
 
   // --- Escalonamento: a AUTORIDADE grava a pendência.  O agente não escreve nada.
   if (!decision.valid && decision.action === "escalate") {
+    // Um "não" precisa durar.
+    //
+    // A busca por pendência abaixo filtra `status: "pending"`, então uma
+    // recusa — que vira `rejected` — não era encontrada, e o tique seguinte
+    // criava outra pendência idêntica.  Na prática o botão Recusar não fazia
+    // nada: cinco segundos depois a mesma compra estava de volta.
+    //
+    // A recusa vale para AQUELA compra: mesmo mandato, mesma loja, mesmo
+    // produto, mesmo preço.  Se o preço mudar, é outra pergunta e vale
+    // perguntar de novo — o que se recusou foi um valor, não um produto.
+    const refused = await Approval.findOne({
+      mandateId,
+      merchantId,
+      productId: purchase.productId,
+      price: purchase.price,
+      status: "rejected",
+    }).lean();
+
+    if (refused) {
+      const no = reject("approval_refused");
+      await audit({ ...base, event: "purchase_decision", decision: "recusado", reason: no.reason, approvalId: refused._id });
+      return remember(no);
+    }
+
     const existing = await Approval.findOne({
       mandateId,
       merchantId,

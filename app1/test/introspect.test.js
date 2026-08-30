@@ -307,6 +307,38 @@ test("on_fail escalate cria pendencia com o motivo", async () => {
   assert.match(pend[0].reasonText, /fails lte/i);
 });
 
+test("RECUSAR DURA: a mesma compra nao volta a perguntar", async () => {
+  const { mandateId } = await createMandate({ mode: "aprovacao", maxUses: 5 });
+
+  const first = await buy(mandateId);
+  assert.equal(first.action, "escalate");
+
+  // O humano diz NAO.
+  const rej = await post(`/approvals/${first.approvalRequestId}/reject`, {}, asHuman);
+  assert.equal(rej.status, 200);
+
+  // O agente (ou o vigia) tenta de novo: nao pode virar pendencia nova.
+  const again = await buy(mandateId);
+  assert.equal(again.valid, false);
+  assert.equal(again.action, "reject");
+  assert.equal(again.reason.code, "approval_refused");
+
+  // E nao ficou nada esperando o humano.
+  const pend = await get("/approvals", asHuman).then((r) => r.json());
+  assert.equal(pend.length, 0);
+});
+
+test("mas outro PRECO e outra pergunta — recusar um valor nao recusa o produto", async () => {
+  const { mandateId } = await createMandate({ mode: "aprovacao", maxUses: 5 });
+  const first = await buy(mandateId);
+  await post(`/approvals/${first.approvalRequestId}/reject`, {}, asHuman);
+
+  // Mesmo produto, preco menor: e uma pergunta nova, e legitimo perguntar.
+  const barato = { ...PURCHASE, price: 5000, attributes: { ...PURCHASE.attributes, price: 5000 } };
+  const r = await buy(mandateId, { purchase: barato, ticket: agentTicket(mandateId, barato) });
+  assert.equal(r.action, "escalate");
+});
+
 /* ----------------- compensacao e concorrencia ---------------------- */
 
 test("pagamento recusado COMPENSA o uso ja consumido", async () => {
