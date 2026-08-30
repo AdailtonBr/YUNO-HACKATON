@@ -157,7 +157,16 @@ export async function introspect(body, { merchantId }) {
     }
 
     const response = { ...decision, approvalRequestId: approvalId };
-    await audit({ ...base, event: "purchase_decision", decision: "escalado", reason: decision.reason, approvalId });
+
+    // Só registra a escalada que CRIOU a pendência.  O vigia bate a cada 5s
+    // enquanto o humano não responde, e cada tique gravava outra linha
+    // "escalado" idêntica — dez minutos de espera enterravam o resto do trilho
+    // sob mais de cem repetições.  A decisão não mudou, e a pendência é o mesmo
+    // registro; quando ela foi criada está nela.  O trilho conta o que
+    // aconteceu, não quantas vezes alguém perguntou de novo.
+    if (!existing) {
+      await audit({ ...base, event: "purchase_decision", decision: "escalado", reason: decision.reason, approvalId });
+    }
     return remember(response);
   }
 

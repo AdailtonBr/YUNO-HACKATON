@@ -339,6 +339,32 @@ test("mas outro PRECO e outra pergunta — recusar um valor nao recusa o produto
   assert.equal(r.action, "escalate");
 });
 
+test("o vigia insistindo nao enche o trilho: uma escalada, uma linha", async () => {
+  const { mandateId } = await createMandate({ mode: "aprovacao", maxUses: 5 });
+
+  // Cinco tentativas da MESMA compra, como o vigia faz a cada tique.
+  for (let i = 0; i < 5; i++) await buy(mandateId, { key: `t-${i}` });
+
+  const escalados = await AuditLog.countDocuments({ mandateId, decision: "escalado" });
+  assert.equal(escalados, 1, "so a escalada que criou a pendencia entra no trilho");
+
+  // E continua havendo UMA pendencia esperando o humano.
+  const pend = await get("/approvals", asHuman).then((r) => r.json());
+  assert.equal(pend.length, 1);
+});
+
+test("o trilho devolve os eventos MAIS RECENTES primeiro", async () => {
+  const { mandateId } = await createMandate({ maxUses: 5 });
+  await buy(mandateId);
+
+  const trail = await get(`/audit?mandateId=${mandateId}`, asHuman).then((r) => r.json());
+  assert.ok(trail.length >= 3);
+  // Mais novo no topo: e o que acabou de acontecer que importa achar primeiro.
+  const ts = trail.map((e) => new Date(e.ts).getTime());
+  assert.deepEqual(ts, [...ts].sort((a, b) => b - a));
+  assert.equal(trail[0].event, "payment_result");
+});
+
 /* ----------------- compensacao e concorrencia ---------------------- */
 
 test("pagamento recusado COMPENSA o uso ja consumido", async () => {

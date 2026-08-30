@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api.js";
 import { t } from "./i18n.js";
 import Shell from "./components/Shell.jsx";
@@ -9,6 +9,9 @@ import ApprovalQueue from "./components/ApprovalQueue.jsx";
 import Mandates from "./components/Mandates.jsx";
 import AuditTrail from "./components/AuditTrail.jsx";
 import Wallet from "./components/Wallet.jsx";
+
+// Acompanha o vigia, que bate a cada 5s.  Não precisa ser mais rápido que ele.
+const POLL_MS = 5000;
 
 export default function App() {
   const [locale, setLocale] = useState("en"); // inglês é o idioma de entrega
@@ -44,7 +47,7 @@ export default function App() {
       setApprovals(a);
       setMethods(pm);
       setAddresses(ad);
-      setTrail(tr.slice().reverse()); // mais recente primeiro
+      setTrail(tr); // já vem do servidor com o mais recente primeiro
       setErr(null);
     } catch {
       setErr(t(locale, "errors.authorityDown"));
@@ -53,6 +56,36 @@ export default function App() {
 
   useEffect(() => {
     reload();
+  }, [reload]);
+
+  /**
+   * A tela acompanha o vigia.
+   *
+   * Desde que existe um ator agindo em segundo plano, uma interface estática
+   * mente por omissão: você aprova uma compra, o vigia a conclui seis segundos
+   * depois, e a tela segue mostrando o mandato como ativo até você mexer em
+   * alguma coisa.  Foi exatamente assim que "aprovei e não encerrou" apareceu.
+   *
+   * Só quando a aba está visível — atualizar uma janela que ninguém olha é
+   * gastar rede à toa.  E um `reload` já em voo não é atropelado por outro.
+   */
+  const busyRef = useRef(false);
+  useEffect(() => {
+    const tick = async () => {
+      if (document.hidden || busyRef.current) return;
+      busyRef.current = true;
+      try {
+        await reload();
+      } finally {
+        busyRef.current = false;
+      }
+    };
+    const id = setInterval(tick, POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [reload]);
 
   /**

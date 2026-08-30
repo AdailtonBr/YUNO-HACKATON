@@ -355,7 +355,10 @@ export function buildRouter() {
 
   r.get("/audit", async (req, res) => {
     const q = req.query.mandateId ? { mandateId: req.query.mandateId } : {};
-    const list = await AuditLog.find(q).sort({ ts: 1 }).limit(500).lean();
+    // Mais RECENTES primeiro.  Era `ts: 1` com limite de 500, ou seja: os 500
+    // eventos mais ANTIGOS.  Com o trilho crescendo, a tela mostraria o começo
+    // da história e esconderia justamente o que acabou de acontecer.
+    const list = await AuditLog.find(q).sort({ ts: -1 }).limit(500).lean();
     res.json(
       list.map((e) => ({
         auditId: e._id,
